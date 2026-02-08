@@ -1,0 +1,25 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+# ---------- Virtual Env ----------
+venv/
+.env/
+.venv/
+# ---------- Flask ----------
+instance/
+*.log
+# ---------- IDE ----------
+.idea/
+.vscode/
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+# ---------- Build / Temp ----------
+*.sqlite3
+*.db
+
+app/uploads/*
+app/files/*
+!.gitkeep
