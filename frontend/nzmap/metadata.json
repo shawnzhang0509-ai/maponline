@@ -1,0 +1,7 @@
+{
+  "name": "New Zealand Massage Map",
+  "description": "A mobile-first massage shop locator for New Zealand with real-time mapping, SMS booking, and administrative management.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
