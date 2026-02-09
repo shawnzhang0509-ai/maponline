@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from app import db
 from app.models.shop import Shop
 from app.models.picture import Picture
-from app.models.shop_picture import ShopPicture
+from app.models.association import ShopPicture
 from app.services.upload_service import save_uploaded_file
 
 
@@ -16,7 +16,7 @@ class ShopRepository:
         # 显式持有 db 实例（虽然 Flask-SQLAlchemy 是全局的，但这样更清晰）
         self.db = db
 
-    def get_shops(self, content=None):
+    def get_all_shops(self, content=None):
         """根据关键词搜索店铺（支持名称或地址）"""
         query = self.db.session.query(Shop)
         query = query.options(joinedload(Shop.pictures))

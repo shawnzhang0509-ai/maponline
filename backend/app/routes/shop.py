@@ -107,7 +107,27 @@ def update_shop(shop_id):
         ]
     }
 
-    return jsonify(shop_data)
-
-
-        
+@shop_bp.route('/shops', methods=['GET'])
+def get_all_shops():
+    shops = service.get_all_shops()
+    file_base_url = current_app.config.get('FILES_URL', '/files/')
+    
+    data = [
+        {
+            "id": shop.id,
+            "name": shop.name,
+            "address": shop.address,
+            "lat": shop.lat,
+            "lng": shop.lng,
+            "phone": shop.phone,
+            "badge_text": shop.badge_text,
+            "new_girls_last_15_days": shop.new_girls_last_15_days,
+            "pictures": [
+                {"id": pic.id, "url": f"{file_base_url}{pic.url}"}
+                for pic in (shop.pictures or [])
+            ]
+        }
+        for shop in shops
+    ]
+    
+    return jsonify(data)   
