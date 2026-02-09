@@ -12,7 +12,7 @@ import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
-const API_URL = 'http://60.204.150.165:5793/shop/search';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const App: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
@@ -36,23 +36,30 @@ const App: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
 
   // Load initial data
-  useEffect(() => {
-    const fetchShops = async (keyword: string = '') => {
-        try {
-          const url = new URL(API_URL);
-          if (keyword) url.searchParams.append('keyword', keyword);
-          const test = url.toString();
-          const res = await fetch(url.toString());
-          if (!res.ok) throw new Error('Network response was not ok');
-          const data = await res.json();
-          setShops(data);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        } catch (err) {
-          console.error('Failed to fetch shops:', err);
-        }
-    };
-    fetchShops();
-  }, []);
+    // 删除原来的 const API_URL = 'http://60.204.150.165:5793/shop/search';
+useEffect(() => {
+// 在文件顶部添加（放在 import 下面）
+
+// 然后替换你的 useEffect 部分：
+  const fetchShops = async (keyword: string = '') => {
+    try {
+      // 构造 /api/shops?keyword=xxx
+      let url = `${API_BASE_URL}/api/shops`;
+      if (keyword) {
+        url += `?keyword=${encodeURIComponent(keyword)}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Network response was not ok');
+      const data = await res.json();
+      setShops(data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.error('Failed to fetch shops:', err);
+    }
+  };
+  fetchShops();
+}, []); //
 
   // Save to localStorage whenever shops change
   useEffect(() => {
@@ -62,26 +69,28 @@ const App: React.FC = () => {
   }, [shops]);
 
   const handleSearch = async (keyword: string) => {
-    setIsSearching(true);  // 开始搜索
-    try {
-      const url = new URL(API_URL);
-      if (keyword) url.searchParams.append('keyword', keyword);
-
-      const res = await fetch(url.toString());
-      if (!res.ok) throw new Error('Network response was not ok');
-
-      const data = await res.json();
-      setShops(data);
-      if (useNearbyFilter && userLocation) {
-        setSelectedShop(data[0] || null);
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.error('Search failed:', err);
-    } finally {
-      setIsSearching(false); // 搜索完成
+  setIsSearching(true);
+  try {
+    let url = `${API_BASE_URL}/api/shops`;
+    if (keyword) {
+      url += `?keyword=${encodeURIComponent(keyword)}`;
     }
-  };
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Network response was not ok');
+
+    const data = await res.json();
+    setShops(data);
+    if (useNearbyFilter && userLocation) {
+      setSelectedShop(data[0] || null);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (err) {
+    console.error('Search failed:', err);
+  } finally {
+    setIsSearching(false);
+  }
+};
 
   const handleLoginSuccess = (username: string) => {
     setIsLoggedIn(true);
@@ -151,32 +160,34 @@ const App: React.FC = () => {
     }
   };
   const handleDeleteShop = async (shop: Shop) => {
-    setDeletingId(shop.id);
+  setDeletingId(shop.id);
 
-    try {
-      const res = await fetch('http://60.204.150.165:5793/shop/del', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: shop.id, token: "my_super_secret_delete_token" }),
-      });
+  try {
+    // ✅ 改成动态 API_BASE_URL + 正确路径
+    const res = await fetch(`${API_BASE_URL}/api/del`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        id: shop.id, 
+        token: "my_super_secret_delete_token" 
+      }),
+    });
 
-      const result = await res.json();
-
-      if (!res.ok || result.error) {
-        alert(result.error || "Failed to delete shop");
-        setDeletingId(null);
-        return;
-      }
-
-      setShops(prev => prev.filter(s => s.id !== shop.id));
-      if (selectedShop?.id === shop.id) setSelectedShop(null);
-    } catch (err) {
-      console.error(err);
-      alert("Network error, please try again.");
-    } finally {
-      setDeletingId(null);
+    const result = await res.json();
+    if (!res.ok || result.error) {
+      alert(result.error || "Failed to delete shop");
+      return;
     }
-  };
+
+    setShops(prev => prev.filter(s => s.id !== shop.id));
+    if (selectedShop?.id === shop.id) setSelectedShop(null);
+  } catch (err) {
+    console.error(err);
+    alert("Network error, please try again.");
+  } finally {
+    setDeletingId(null);
+  }
+};
       return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       <Header
