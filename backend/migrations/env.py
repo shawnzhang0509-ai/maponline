@@ -2,7 +2,7 @@ from app import create_app
 from app.models.picture import Picture
 from app.models.shop import Shop
 from app.models.shop_picture import ShopPicture
-from app.db_extensions import db
+from app import db
 import logging
 from logging.config import fileConfig
 from flask import current_app

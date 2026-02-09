@@ -1,7 +1,6 @@
 import os
 import base64
 import uuid
-from app.db_extensions import db
 from flask import current_app
 from app.repositories.base_repository import BaseRepository
 from app.models.shop import Shop
