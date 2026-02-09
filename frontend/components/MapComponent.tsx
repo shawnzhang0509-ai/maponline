@@ -37,15 +37,24 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
   }
 
   // 图片或 fallback 文字
-  const imageUrl = shop.pictures?.[0];
-  if (imageUrl) {
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.alt = shop.name || 'SPA';
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.objectFit = 'cover';
-    img.style.objectPosition = 'top'; // 优先显示上半身
+  // 安全获取图片 URL
+const getPictureUrl = (pic: any): string | null => {
+  if (!pic) return null;
+  if (typeof pic === 'string') return pic;
+  if (typeof pic === 'object' && typeof pic.url === 'string') return pic.url;
+  return null;
+};
+
+const imageUrl = getPictureUrl(shop.pictures?.[0]);
+
+if (imageUrl) {
+  const img = document.createElement('img');
+  img.src = imageUrl; // ✅ 现在是字符串
+  img.alt = shop.name || 'SPA';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.objectFit = 'cover';
+  img.style.objectPosition = 'top';
     img.onerror = () => {
       // 图片加载失败 → 显示 SPA
       img.remove();

@@ -9,6 +9,19 @@ interface Props {
   onClose: () => void;
 }
 
+const getImageUrl = (picture: any): string => {
+  if (typeof picture === 'string') {
+    // 如果是字符串，则直接返回
+    return picture;
+  }
+  if (typeof picture === 'object' && typeof picture.url === 'string') {
+    // 如果是对象且有 url 字段，则返回 url 字段
+    return picture.url;
+  }
+  // 默认返回一个占位图
+  return 'https://via.placeholder.com/400x300.png?text=No+Image';
+};
+
 const ImagePreviewModal: React.FC<Props> = ({
   shop,
   index,
@@ -24,7 +37,7 @@ const ImagePreviewModal: React.FC<Props> = ({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [onClose]);
 
   if (images.length === 0) return null;
 
@@ -44,7 +57,7 @@ const ImagePreviewModal: React.FC<Props> = ({
 
         {/* 主图 */}
         <div className="w-full aspect-video bg-black flex items-center justify-center">
-          <img src={images[index]} className="max-h-full max-w-full object-contain"/>
+          <img src={getImageUrl(images[index])} className="max-h-full max-w-full object-contain"/>
         </div>
 
         {/* 缩略图 */}
@@ -52,7 +65,7 @@ const ImagePreviewModal: React.FC<Props> = ({
           {images.map((img, i) => (
             <img
               key={i}
-              src={img}
+              src={getImageUrl(img)}
               onClick={() => onChangeIndex(i)}
               className={`h-16 w-24 object-cover rounded-lg cursor-pointer border-2 transition ${
                 i === index
