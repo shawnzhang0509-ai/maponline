@@ -1,166 +1,175 @@
 import os
-import base64
 import uuid
 from flask import current_app
-from app.repositories.base_repository import BaseRepository
+from sqlalchemy import or_
+from sqlalchemy.orm import joinedload
+
+from app import db
 from app.models.shop import Shop
 from app.models.picture import Picture
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import joinedload
+from app.models.shop_picture import ShopPicture
 from app.services.upload_service import save_uploaded_file
 
-class ShopRepository(BaseRepository):
-    model = Shop
-    def get_shop(self, content=None):
-        query = self.session.query(Shop)
 
-        query = query.options(
-            joinedload(Shop.pictures)
-        )
-        if content != '':
+class ShopRepository:
+    def __init__(self):
+        # 显式持有 db 实例（虽然 Flask-SQLAlchemy 是全局的，但这样更清晰）
+        self.db = db
+
+    def get_shops(self, content=None):
+        """根据关键词搜索店铺（支持名称或地址）"""
+        query = self.db.session.query(Shop)
+        query = query.options(joinedload(Shop.pictures))
+
+        if content and content.strip():
             query = query.filter(
                 or_(
-                    Shop.name.ilike(f'%{content}%'),
-                    Shop.address.ilike(f'%{content}%')
+                    Shop.name.ilike(f"%{content}%"),
+                    Shop.address.ilike(f"%{content}%")
                 )
             )
-        query = query.all()
-        return query
-    
+
+        return query.all()
+
+    def get_by_id(self, shop_id):
+        """根据 ID 获取店铺"""
+        return self.db.session.query(Shop).get(shop_id)
+
     def add_shop(self, data=None, files=None):
+        """添加新店铺及关联图片"""
+        data = data or {}
+        files = files or []
+
+        # 处理布尔字段
         new_girls = data.get("new_girls_last_15_days", False)
         if isinstance(new_girls, str):
             new_girls = new_girls.lower() == "true"
+
+        # 创建店铺
         shop = Shop(
             name=data.get('name'),
             address=data.get('address'),
             phone=data.get('phone'),
             lat=data.get('lat'),
             lng=data.get('lng'),
-            badge_text = data.get('badge_text'),
+            badge_text=data.get('badge_text'),
             new_girls_last_15_days=new_girls
         )
-        self.add(shop)
-        
-        files = files or []
+
+        self.db.session.add(shop)
+        self.db.session.flush()  # 获取 shop.id
+
+        # 保存图片
         for f in files:
             file_name, _ = save_uploaded_file(f)
-
             picture = Picture(url=file_name)
-            self.add(picture)
+            self.db.session.add(picture)
+            self.db.session.flush()
 
             shop_picture = ShopPicture(shop_id=shop.id, picture_id=picture.id)
-            self.add(shop_picture)
+            self.db.session.add(shop_picture)
 
-        # 3. 提交事务
-        self.session.commit()
-
+        self.db.session.commit()
         return shop
-        
-    def del_shop(self, shop_id: int):
-        try:
-            # 1. 查出 shop
-            shop = self.get_by_id(shop_id)
-            if not shop:
-                return False, "Shop not found"
-
-            # 2. 查出所有关联的中间表记录和图片记录
-            shop_pictures = db.session.query(ShopPicture).filter(ShopPicture.shop_id == shop_id).all()
-            picture_ids = [sp.picture_id for sp in shop_pictures]
-
-            pictures = db.session.query(Picture).filter(Picture.id.in_(picture_ids)).all()
-
-            # 3. 删除中间表
-            for sp in shop_pictures:
-                db.session.delete(sp)
-
-            # 4. 删除图片文件和图片记录
-            files_folder = current_app.config['FILES_FOLDER']
-            for pic in pictures:
-                file_path = os.path.join(files_folder, pic.url)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                db.session.delete(pic)
-
-            # 5. 删除 shop
-            db.session.delete(shop)
-
-            # 6. 提交事务
-            db.session.commit()
-            return True, "Shop deleted successfully"
-
-        except Exception as e:
-            db.session.rollback()
-            return False, str(e)
 
     def update_shop(self, shop_id, data=None, files=None):
-        shop = self.session.query(Shop).get(shop_id)
+        """更新店铺信息及图片（支持删除和新增）"""
+        data = data or {}
+        files = files or []
+
+        shop = self.get_by_id(shop_id)
         if not shop:
             raise ValueError("Shop not found")
 
-        # 1. 处理 boolean
-        new_girls = data.get("new_girls_last_15_days")
-        if isinstance(new_girls, str):
-            new_girls = new_girls.lower() == "true"
-
-        # 2. 更新字段（有值才改）
-        for field in [
-            "name", "address", "phone",
-            "lat", "lng", "badge_text"
-        ]:
+        # 更新基础字段
+        fields = ["name", "address", "phone", "lat", "lng", "badge_text"]
+        for field in fields:
             if field in data:
-                setattr(shop, field, data.get(field))
+                setattr(shop, field, data[field])
 
+        # 更新布尔字段
+        new_girls = data.get("new_girls_last_15_days")
         if new_girls is not None:
+            if isinstance(new_girls, str):
+                new_girls = new_girls.lower() == "true"
             shop.new_girls_last_15_days = new_girls
 
-        # ===== 3. 删除图片 =====
-        remove_ids = [int(i) for i in data.get("remove_picture_ids", "").split(",") if i]
-        if remove_ids:
-            remove_ids = [int(i) for i in remove_ids]
+        # 删除指定图片
+        remove_ids_str = data.get("remove_picture_ids", "")
+        if remove_ids_str:
+            try:
+                remove_ids = [int(i) for i in remove_ids_str.split(",") if i.strip()]
+                if remove_ids:
+                    # 查询要删除的中间记录
+                    shop_pictures = (
+                        self.db.session.query(ShopPicture)
+                        .filter(
+                            ShopPicture.shop_id == shop.id,
+                            ShopPicture.picture_id.in_(remove_ids)
+                        )
+                        .all()
+                    )
+                    picture_ids = [sp.picture_id for sp in shop_pictures]
 
+                    # 删除文件和数据库记录
+                    files_folder = current_app.config['FILES_FOLDER']
+                    for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
+                        file_path = os.path.join(files_folder, pic.url)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        self.db.session.delete(pic)
+
+                    for sp in shop_pictures:
+                        self.db.session.delete(sp)
+            except (ValueError, TypeError):
+                pass  # 忽略无效 ID
+
+        # 新增图片
+        for f in files:
+            file_name, _ = save_uploaded_file(f)
+            picture = Picture(url=file_name)
+            self.db.session.add(picture)
+            self.db.session.flush()
+
+            shop_picture = ShopPicture(shop_id=shop.id, picture_id=picture.id)
+            self.db.session.add(shop_picture)
+
+        self.db.session.commit()
+        return shop
+
+    def del_shop(self, shop_id: int):
+        """删除店铺及其所有关联图片（物理删除文件）"""
+        shop = self.get_by_id(shop_id)
+        if not shop:
+            return False, "Shop not found"
+
+        try:
+            # 获取所有关联图片
             shop_pictures = (
-                self.session.query(ShopPicture)
-                .filter(
-                    ShopPicture.shop_id == shop.id,
-                    ShopPicture.picture_id.in_(remove_ids)
-                )
+                self.db.session.query(ShopPicture)
+                .filter(ShopPicture.shop_id == shop_id)
                 .all()
             )
-
             picture_ids = [sp.picture_id for sp in shop_pictures]
 
-            pictures = (
-                self.session.query(Picture)
-                .filter(Picture.id.in_(picture_ids))
-                .all()
-            )
-
-            for sp in shop_pictures:
-                self.session.delete(sp)
-
+            # 删除文件和图片记录
             files_folder = current_app.config['FILES_FOLDER']
-            for pic in pictures:
+            for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
                 file_path = os.path.join(files_folder, pic.url)
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                self.session.delete(pic)
+                self.db.session.delete(pic)
 
-        # 4. 新增图片（不影响旧图）
-        files = files or []
-        for f in files:
-            file_name, _ = save_uploaded_file(f)
+            # 删除中间表记录
+            for sp in shop_pictures:
+                self.db.session.delete(sp)
 
-            picture = Picture(url=file_name)
-            self.session.add(picture)
-            self.session.flush()  # 立刻拿到 picture.id
+            # 删除店铺
+            self.db.session.delete(shop)
+            self.db.session.commit()
 
-            shop_picture = ShopPicture(
-                shop_id=shop.id,
-                picture_id=picture.id
-            )
-            self.session.add(shop_picture)
+            return True, "Shop deleted successfully"
 
-        self.session.commit()
-        return shop
-
+        except Exception as e:
+            self.db.session.rollback()
+            return False, str(e)
