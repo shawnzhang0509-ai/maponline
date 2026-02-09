@@ -1,32 +1,25 @@
+# backend/app/config.py
 import os
 
 class Config:
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
+    
+    # === 只用 SQLite，永远不用 psycopg2 ===
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    FILES_FOLDER = os.path.join(BASE_DIR, 'files') 
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'app.db')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {}  # SQLite 不需要连接池
+
+    # 文件夹
+    FILES_FOLDER = os.path.join(BASE_DIR, 'files')
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # 文件访问 URL（Render 会通过反向代理暴露 /files）
+    RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', '')
+    if RENDER_EXTERNAL_URL:
+        FILES_URL = f"{RENDER_EXTERNAL_URL}/files/"
+    else:
+        FILES_URL = "/files/"  # 开发时用相对路径
 
-    # 连接池配置（非常重要）
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_size": 10,            # 常驻连接
-        "max_overflow": 20,         # 高峰临时连接
-        "pool_timeout": 30,         # 等待连接秒数
-        "pool_recycle": 1800,       # 防止 PG 断连
-        "pool_pre_ping": True,      # 生产必须
-        "connect_args": {
-            "sslmode": "require"    # 强制华为云公网 RDS 使用 SSL
-        }
-    }
-
-    SQLALCHEMY_DATABASE_URI = (
-        "postgresql+psycopg2://evin:19821027aA@121.36.193.222:5432/webdir"
-    )
-
-    IPADDRESS = '60.204.150.165'
-    PORT = '5793'
-    FILES_URL = f"http://{IPADDRESS}:{PORT}/files/"
-
-    ADMIN_DELETE_TOKEN = "my_super_secret_delete_token"
-    
+    ADMIN_DELETE_TOKEN = os.environ.get('ADMIN_DELETE_TOKEN') or "my_super_secret_delete_token"
