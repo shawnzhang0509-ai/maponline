@@ -1,4 +1,4 @@
-# backend/app/models/shop_picture.py
+# app/models/association.py
 from app import db
 
 shop_picture = db.Table(

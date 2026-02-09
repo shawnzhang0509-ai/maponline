@@ -1,27 +1,27 @@
-from flask import Flask
-from app.config import Config
-from app.db_extensions import db, migrate
-from app.models.picture import Picture
-from app.models.shop import Shop
-from app.models.shop_picture import ShopPicture
+# app/__init__.py
+from flask import Flask, send_from_directory
+from flask_sqlalchemy import SQLAlchemy
+import os
+
+db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)
-
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['FILES_FOLDER'] = os.path.join(app.root_path, 'uploads')
+    app.config['FILES_URL'] = '/uploads'
+    
+    os.makedirs(app.config['FILES_FOLDER'], exist_ok=True)
+    
     db.init_app(app)
-    migrate.init_app(app, db)
-
-    from app.routes.upload import upload_bp
-    from app.routes.test import test_bp
+    
     from app.routes.shop import shop_bp
-    from app.routes.files import files_bp
-    from app.routes.user import user_bp
-
-    app.register_blueprint(upload_bp, url_prefix='/photo')
-    app.register_blueprint(test_bp, url_prefix='/test')
     app.register_blueprint(shop_bp, url_prefix='/shop')
-    app.register_blueprint(files_bp, url_prefix='/files')
-    app.register_blueprint(user_bp, url_prefix='/user')
-
+    
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        return send_from_directory(app.config['FILES_FOLDER'], filename)
+    
     return app

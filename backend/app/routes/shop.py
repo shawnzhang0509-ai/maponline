@@ -5,7 +5,7 @@ from flask import current_app
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
 
-@shop_bp.route('search', methods=['GET'])
+@shop_bp.route('/search', methods=['GET'])
 def search():
     keyword = request.args.get('keyword', '').strip()
 
@@ -56,6 +56,11 @@ def add_shop():
     }
 
     return jsonify(shop_data)
+
+# ✅ 临时加一个测试路由
+@shop_bp.route('/list')
+def list_all():
+    return jsonify({"shops": "This is a test endpoint"})
 
 @shop_bp.route('/del', methods=['POST'])
 def delete_shop():

@@ -6,7 +6,6 @@ from flask import current_app
 from app.repositories.base_repository import BaseRepository
 from app.models.shop import Shop
 from app.models.picture import Picture
-from app.models.shop_picture import ShopPicture
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 from app.services.upload_service import save_uploaded_file

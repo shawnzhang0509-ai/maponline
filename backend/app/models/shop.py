@@ -1,28 +1,20 @@
-from flask_sqlalchemy import SQLAlchemy
-from app.db_extensions import db
+# app/models/shop.py
+from app import db
+from app.models.picture import Picture
+from app.models.association import shop_picture
 
 class Shop(db.Model):
     __tablename__ = 'shop'
-
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    address = db.Column(db.Text, nullable=False)
-    lat = db.Column(db.Numeric(9, 6), nullable=False)
-    lng = db.Column(db.Numeric(9, 6), nullable=False)
-    phone = db.Column(db.String(20))
-    badge_text = db.Column(db.String(20))
-    new_girls_last_15_days = db.Column(db.Boolean, server_default='false')
+    name = db.Column(db.String(100), nullable=False)
+    address = db.Column(db.String(200))
+    lat = db.Column(db.Float)
+    lng = db.Column(db.Float)
+    badge_text = db.Column(db.String(50))                    # ← 补全
+    new_girls_last_15_days = db.Column(db.Boolean, default=False)  # ← 补全
 
-    created_at = db.Column(db.DateTime, server_default=db.func.now())
-    updated_at = db.Column(
-        db.DateTime,
-        server_default=db.func.now(),
-        onupdate=db.func.now()
-    )
-
-    # 关联图片
     pictures = db.relationship(
-        'Picture',
-        secondary='shop_picture',
-        back_populates='shops'
+        "Picture",
+        secondary=shop_picture,
+        backref=db.backref("shops", lazy="dynamic")
     )
