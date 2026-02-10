@@ -8,8 +8,12 @@ from app.models.picture import Picture
 from app.models.association import ShopPicture
 
 app = create_app()
-CORS(app)  # 允许前端跨域请求
-
+CORS(app, origins=[
+    "https://nzmassagemap.online",
+    "https://www.nzmassagemap.online",
+    "https://maponline.vercel.app",  # Vercel 默认域名
+    "http://localhost:3000"          # 本地开发
+])
 # 初始化数据库并添加测试数据
 with app.app_context():
     db.create_all()  # 创建所有表（shop, picture, shop_picture）
