@@ -26,7 +26,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
       const params = new URLSearchParams({ uname: username, pwd: password });
       
       // ✅ 发送请求到正确的 HTTPS 地址
-      const res = await fetch(`http://127.0.0.1:5000/login?uname=${username}&pwd=${password}`, {
+      const res = await fetch(`${API_BASE_URL}/login?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
