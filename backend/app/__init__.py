@@ -14,7 +14,7 @@ def create_app():
     app.config['FILES_FOLDER'] = './uploads'
 
     db.init_app(app)
-    CORS(app)  # 👈 允许前端跨域请求（开发时必需）
+    CORS(app, origins=["https://www.nzmassagemap.online"])  # 👈 允许前端跨域请求（开发时必需）
 
     # 导入模型
     from app.models.shop import Shop
