@@ -25,7 +25,7 @@ def create_app():
     from app.routes.shop import shop_bp
     from app.routes.user import user_bp  # ← 新增：导入 user_bp
 
-    app.register_blueprint(shop_bp, url_prefix='/api')
+    app.register_blueprint(shop_bp, url_prefix='/shop')
     app.register_blueprint(user_bp)      # ← 新增：注册 user_bp（无前缀）
 
     return app
