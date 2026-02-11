@@ -46,8 +46,13 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const mainImg = shop.pictures && shop.pictures.length > 0 ? shop.pictures[0] : defaultImg;
 
   const handleSave = async () => {
-    const formData = new FormData();
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    if (!API_BASE_URL) {
+      alert('API URL not configured');
+      return;
+    }
 
+    const formData = new FormData();
     formData.append('name', editData.name);
     formData.append('address', editData.address);
     formData.append('phone', editData.phone);
@@ -58,21 +63,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
       'new_girls_last_15_days',
       editData.new_girls_last_15_days ? '1' : '0'
     );
-
-    // ===== 删除图片 ID（关键）=====
-    // editData.removePictureIds.forEach(id => {
-    //   formData.append('remove_picture_ids', String(id));
-    // });
     formData.append('remove_picture_ids', editData.removePictureIds.join(','));
 
-    // ===== 新上传图片（字段名必须是 pictures）=====
     editData.newPictures.forEach(file => {
       formData.append('pictures', file);
     });
 
     try {
       const res = await fetch(
-        `http://60.204.150.165:5793/shop/update/${editData.id}`,
+        `${API_BASE_URL}/shop/update/${editData.id}`,
         {
           method: 'POST',
           body: formData,
@@ -84,7 +83,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
       }
 
       const updatedShop: Shop = await res.json();
-
       onSave(updatedShop);
       setIsEditing(false);
       setPreviewImage(null);

@@ -38,7 +38,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
 
     setIsSubmitting(true); 
 
-    const add_api_url = 'http://60.204.150.165:5793/shop/add';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    const add_api_url = `${API_BASE_URL}/shop/add`;
     const formData = new FormData();
     formData.append("name", newShop.name!);
     formData.append("address", newShop.address!);

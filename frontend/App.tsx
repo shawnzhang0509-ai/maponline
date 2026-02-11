@@ -44,7 +44,7 @@ useEffect(() => {
   const fetchShops = async (keyword: string = '') => {
     try {
       // 构造 /api/shops?keyword=xxx
-      let url = `${API_BASE_URL}/api/shops`;
+      let url = `${API_BASE_URL}/shop/shops`;
       if (keyword) {
         url += `?keyword=${encodeURIComponent(keyword)}`;
       }
@@ -71,7 +71,7 @@ useEffect(() => {
   const handleSearch = async (keyword: string) => {
   setIsSearching(true);
   try {
-    let url = `${API_BASE_URL}/api/shops`;
+    let url = `${API_BASE_URL}/shop/shops`;
     if (keyword) {
       url += `?keyword=${encodeURIComponent(keyword)}`;
     }
@@ -164,7 +164,7 @@ useEffect(() => {
 
   try {
     // ✅ 改成动态 API_BASE_URL + 正确路径
-    const res = await fetch(`${API_BASE_URL}/api/del`, {
+    const res = await fetch(`${API_BASE_URL}/shop/del`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
