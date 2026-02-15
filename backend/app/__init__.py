@@ -9,6 +9,7 @@ def create_app():
     app = Flask(__name__)
     
     # 配置...
+    app.config['ADMIN_DELETE_TOKEN'] = 'my_super_secret_delete_token'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///./dev.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['FILES_FOLDER'] = './uploads'
