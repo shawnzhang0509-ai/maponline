@@ -1,4 +1,5 @@
 # backend/app/__init__.py
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS  # 👈 如果还没加，建议加上（解决跨域）
@@ -7,10 +8,13 @@ db = SQLAlchemy()
 
 def create_app():
     app = Flask(__name__)
+
+    # 👇 2. 必须定义 basedir (获取当前文件所在的绝对路径)
+    basedir = os.path.abspath(os.path.dirname(__file__))
     
     # 配置...
     app.config['ADMIN_DELETE_TOKEN'] = 'my_super_secret_delete_token'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///./dev.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'dev.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['FILES_FOLDER'] = './uploads'
 
