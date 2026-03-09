@@ -15,7 +15,11 @@ const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const App: React.FC = () => {
-  const [shops, setShops] = useState<Shop[]>([]);
+  // 尝试从 localStorage 读取数据，如果没有则默认为空数组
+  const [shops, setShops] = useState<Shop[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -37,11 +41,11 @@ const App: React.FC = () => {
 
 
   // Save to localStorage whenever shops change
-  useEffect(() => {
-    if (shops.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
-    }
-  }, [shops]);
+  //useEffect(() => {
+    //if (shops.length > 0) {
+      //localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
+    //}
+  //}, [shops]);
 
   const handleSearch = async (keyword: string) => {
   setIsSearching(true);
@@ -59,7 +63,7 @@ const App: React.FC = () => {
     if (useNearbyFilter && userLocation) {
       setSelectedShop(data[0] || null);
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    //localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error('Search failed:', err);
   } finally {
@@ -134,38 +138,28 @@ const App: React.FC = () => {
       // 1. 创建 FormData 对象
       const formData = new FormData();
       
-      // 2. 将所有文本字段追加到 formData
-      // 注意：key 必须和后端 service.add_shop 期待的字段名一致
+      // 2. 填入文本信息
       formData.append('name', newShop.name);
       formData.append('address', newShop.address);
-      formData.append('lat', String(newShop.lat)); // 转为字符串
+      formData.append('lat', String(newShop.lat));
       formData.append('lng', String(newShop.lng));
       formData.append('phone', newShop.phone || '');
       
-      // 如果有其他字段 (如 badge_text)，也在这里加上
       if (newShop.badge_text) formData.append('badge_text', newShop.badge_text);
       if (newShop.new_girls_last_15_days) formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days));
 
-      // 3. 处理图片 (关键步骤)
-      // 假设 newShop.images 或 newShop.pictures 是一个 File[] (文件对象数组) 或者 string[] (URL)
-      // 情况 A: 如果是用户选择的本地文件 (File 对象)
+      // 3. 填入图片文件 (如果有)
       if (Array.isArray((newShop as any).imageFiles) && (newShop as any).imageFiles.length > 0) {
         (newShop as any).imageFiles.forEach((file: File) => {
-          formData.append('pictures', file); // 后端用的是 'pictures'
+          formData.append('pictures', file); 
         });
       } 
-      // 情况 B: 如果只是图片 URL 字符串，后端可能不需要 files，或者需要特殊处理
-      // 如果后端 service.add_shop 能处理 URL 字符串，这里可以不用 append files
-      // 但如果后端强制期待 files，而前端只传了 URL，可能会存不了图。
-      // ⚠️ 暂时先假设你的 AdminPanel 传过来的是包含 File 对象的，或者后端能兼容空 files。
 
       // 4. 发送请求
-      // ⚠️ 注意：使用 FormData 时，千万不要手动设置 'Content-Type': 'application/json'
-      // 浏览器会自动设置为 'multipart/form-data; boundary=...'
       const response = await fetch(`${API_BASE_URL}/shop/add`, {
         method: 'POST',
         body: formData, 
-        // headers: { ... } <--- ❌ 删掉 headers，让浏览器自动处理
+        // 注意：这里不要手动设置 Content-Type，浏览器会自动处理
       });
 
       if (!response.ok) {
@@ -173,18 +167,25 @@ const App: React.FC = () => {
         throw new Error(errorData.error || '保存失败');
       }
 
+      // 5. 【关键步骤】后端成功后，获取返回的新店铺数据
       const result = await response.json();
       
-      // 5. 成功后刷新列表
-      setShops(prev => [...prev, result]);
+      // 6. 手动更新前端列表 和 本地存储
+      // 我们把新店铺加到当前列表后面
+      const updatedShops = [...shops, result];
+      setShops(updatedShops);
+      
+      // 立即保存到 localStorage，防止刷新丢失
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedShops));
 
+      // 7. 清理界面
       setShowAdmin(false);
       setSelectedShop(result);
-      alert("✅ 保存成功！数据已写入数据库。");
+      alert("✅ 保存成功！数据已写入数据库和本地缓存。");
 
     } catch (error) {
       console.error('添加店铺失败:', error);
-      alert("❌ 保存失败：" + (error as Error).message);
+      alert("❌ 保存失败：" + (error as Error).message + "\n(数据仍保留在本地列表中，未丢失)");
     }
   };
   const handleDeleteShop = async (shop: Shop) => {
