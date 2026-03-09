@@ -35,31 +35,6 @@ const App: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Load initial data
-    // 删除原来的 const API_URL = 'http://60.204.150.165:5793/shop/search';
-useEffect(() => {
-// 在文件顶部添加（放在 import 下面）
-
-// 然后替换你的 useEffect 部分：
-  const fetchShops = async (keyword: string = '') => {
-    try {
-      // 构造 /api/shops?keyword=xxx
-      let url = `${API_BASE_URL}/shop/shops`;
-      if (keyword) {
-        url += `?keyword=${encodeURIComponent(keyword)}`;
-      }
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Network response was not ok');
-      const data = await res.json();
-      setShops(data);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.error('Failed to fetch shops:', err);
-    }
-  };
-  fetchShops();
-}, []); //
 
   // Save to localStorage whenever shops change
   useEffect(() => {
@@ -201,7 +176,7 @@ useEffect(() => {
       const result = await response.json();
       
       // 5. 成功后刷新列表
-      await fetchShops(); 
+      setShops(prev => [...prev, result]);
 
       setShowAdmin(false);
       setSelectedShop(result);
@@ -311,7 +286,7 @@ useEffect(() => {
 
         {/* Bottom Horizontal Scrollable Card List */}
         <div 
-          className="absolute bottom-0 left-0 right-0 z-[999] bg-white shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto"
+          className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto"
           ref={scrollContainerRef}
         >
           <div className="p-4 flex gap-4 min-w-max">
