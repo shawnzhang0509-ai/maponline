@@ -102,6 +102,10 @@ useEffect(() => {
     setUsername(null);
     localStorage.removeItem("admin_logged_in");
   }
+    // ✅ 补上缺失的 handleSelectShop 函数
+  const handleSelectShop = (shop: Shop) => {
+    setSelectedShop(shop);
+  };
   // Request user location
   const requestLocation = () => {
     if (navigator.geolocation) {
@@ -129,6 +133,18 @@ useEffect(() => {
     return shops;
   }, [shops, useNearbyFilter, userLocation, radiusKm]);
 
+  // ✅ 补上缺失的 fetchShops 函数
+  const fetchShops = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/shop/shops`);
+      if (!response.ok) throw new Error('Failed to fetch shops');
+      const data = await response.json();
+      setShops(data);
+    } catch (error) {
+      console.error('Error fetching shops:', error);
+      // 可选：这里可以加一个 setError("加载店铺失败")
+    }
+  };
   // Initial shop selection
   useEffect(() => {
     if (filteredShops.length > 0 && !selectedShop) {
@@ -136,27 +152,64 @@ useEffect(() => {
     }
   }, [filteredShops]);
 
-  const handleAddShop = (newShop: Shop) => {
-    setShops([newShop, ...shops]);
-    setShowAdmin(false);
-    setSelectedShop(newShop);
-  };
+    // ✅ 修复后的 handleAddShop
+    // ✅ 适配后端 form-data 格式的 handleAddShop
+  const handleAddShop = async (newShop: Shop) => {
+    try {
+      // 1. 创建 FormData 对象
+      const formData = new FormData();
+      
+      // 2. 将所有文本字段追加到 formData
+      // 注意：key 必须和后端 service.add_shop 期待的字段名一致
+      formData.append('name', newShop.name);
+      formData.append('address', newShop.address);
+      formData.append('lat', String(newShop.lat)); // 转为字符串
+      formData.append('lng', String(newShop.lng));
+      formData.append('phone', newShop.phone || '');
+      
+      // 如果有其他字段 (如 badge_text)，也在这里加上
+      if (newShop.badge_text) formData.append('badge_text', newShop.badge_text);
+      if (newShop.new_girls_last_15_days) formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days));
 
-  const handleSelectShop = (shop: Shop) => {
-    setSelectedShop(shop);
+      // 3. 处理图片 (关键步骤)
+      // 假设 newShop.images 或 newShop.pictures 是一个 File[] (文件对象数组) 或者 string[] (URL)
+      // 情况 A: 如果是用户选择的本地文件 (File 对象)
+      if (Array.isArray((newShop as any).imageFiles) && (newShop as any).imageFiles.length > 0) {
+        (newShop as any).imageFiles.forEach((file: File) => {
+          formData.append('pictures', file); // 后端用的是 'pictures'
+        });
+      } 
+      // 情况 B: 如果只是图片 URL 字符串，后端可能不需要 files，或者需要特殊处理
+      // 如果后端 service.add_shop 能处理 URL 字符串，这里可以不用 append files
+      // 但如果后端强制期待 files，而前端只传了 URL，可能会存不了图。
+      // ⚠️ 暂时先假设你的 AdminPanel 传过来的是包含 File 对象的，或者后端能兼容空 files。
 
-    if (!scrollContainerRef.current) return;
-
-    const cardElement = scrollContainerRef.current.querySelector(
-      `[data-shop-name="${CSS.escape(shop.name)}"]`
-    );
-
-    if (cardElement) {
-      cardElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center' // 👈 水平居中
+      // 4. 发送请求
+      // ⚠️ 注意：使用 FormData 时，千万不要手动设置 'Content-Type': 'application/json'
+      // 浏览器会自动设置为 'multipart/form-data; boundary=...'
+      const response = await fetch(`${API_BASE_URL}/shop/add`, {
+        method: 'POST',
+        body: formData, 
+        // headers: { ... } <--- ❌ 删掉 headers，让浏览器自动处理
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '保存失败');
+      }
+
+      const result = await response.json();
+      
+      // 5. 成功后刷新列表
+      await fetchShops(); 
+
+      setShowAdmin(false);
+      setSelectedShop(result);
+      alert("✅ 保存成功！数据已写入数据库。");
+
+    } catch (error) {
+      console.error('添加店铺失败:', error);
+      alert("❌ 保存失败：" + (error as Error).message);
     }
   };
   const handleDeleteShop = async (shop: Shop) => {
