@@ -83,29 +83,38 @@ def delete_shop():
     
 @shop_bp.route('/update/<int:shop_id>', methods=['POST'])
 def update_shop(shop_id):
-    data = request.form.to_dict()
-    files = request.files.getlist("pictures")
+    try:
+        data = request.form.to_dict()
+        files = request.files.getlist("pictures")
 
-    shop = service.update_shop(shop_id=shop_id, data=data, files=files)
+        shop = service.update_shop(shop_id=shop_id, data=data, files=files)
 
-    file_base_url = current_app.config.get('FILES_URL', '/files/')
-    shop_data = {
-        "id": shop.id,
-        "name": shop.name,
-        "address": shop.address,
-        "lat": float(shop.lat),
-        "lng": float(shop.lng),
-        "phone": shop.phone,
-        "badge_text": shop.badge_text,
-        "new_girls_last_15_days": shop.new_girls_last_15_days,
-        "pictures": [
-            {
-                "id": pic.id,
-                "url": f"{file_base_url}{pic.url}"
-            }
-            for pic in (shop.pictures or [])
-        ]
-    }
+        file_base_url = current_app.config.get('FILES_URL', '/files/')
+        shop_data = {
+            "id": shop.id,
+            "name": shop.name,
+            "address": shop.address,
+            "lat": float(shop.lat),
+            "lng": float(shop.lng),
+            "phone": shop.phone,
+            "badge_text": shop.badge_text,
+            "new_girls_last_15_days": shop.new_girls_last_15_days,
+            "pictures": [
+                {
+                    "id": pic.id,
+                    "url": f"{file_base_url}{pic.url}"
+                }
+                for pic in (shop.pictures or [])
+            ]
+        }
+
+    # 👇👇👇 关键修复：加上这一行返回响应 👇👇👇
+        return jsonify(shop_data)
+
+    except Exception as e:
+        # 记录错误日志（如果有配置 logging）
+        current_app.logger.error(f"Update shop failed: {str(e)}")
+        return jsonify({"error": "更新失败", "details": str(e)}), 500
 
 @shop_bp.route('/shops', methods=['GET'])
 def get_all_shops():
