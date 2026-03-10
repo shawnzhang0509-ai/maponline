@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Navigation, Filter } from 'lucide-react';
 import Header from './components/Header';
@@ -12,14 +11,18 @@ import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
+// ⚠️ 注意：如果本地登录失败，请检查 .env 文件中的 VITE_API_BASE_URL
+// 或者确认你的本地后端服务是否在 http://localhost:5000 运行
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const App: React.FC = () => {
-  // 尝试从 localStorage 读取数据，如果没有则默认为空数组
+  // 1. 初始化状态
   const [shops, setShops] = useState<Shop[]>(() => {
+    if (typeof window === 'undefined') return [];
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
   });
+
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -27,65 +30,80 @@ const App: React.FC = () => {
   const [radiusKm, setRadiusKm] = useState(10);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
+  
+  // 登录状态初始化
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    if (typeof window === 'undefined') return false;
     return localStorage.getItem("admin_logged_in") === "true";
   });
-  const [username, setUsername] = useState<string | null>(
-    localStorage.getItem('admin_username')
-  );
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  const [username, setUsername] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('admin_username');
+  });
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
 
+  // ✅【核心修复】全局监听 shops 变化，自动保存到 localStorage
+  // 修复了之前语法错误导致保存逻辑失效的问题
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
+      console.log('💾 自动保存成功，当前店铺数:', shops.length);
+    } catch (e) {
+      console.error('保存失败:', e);
+    }
+  }, [shops]);
 
-  // Save to localStorage whenever shops change
-  //useEffect(() => {
-    //if (shops.length > 0) {
-      //localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
-    //}
-  //}, [shops]);
-
+  // 2. 搜索功能
   const handleSearch = async (keyword: string) => {
-  setIsSearching(true);
-  try {
-    let url = `${API_BASE_URL}/shop/shops`;
-    if (keyword) {
-      url += `?keyword=${encodeURIComponent(keyword)}`;
+    setIsSearching(true);
+    try {
+      let url = `${API_BASE_URL}/shop/shops`;
+      if (keyword) {
+        url += `?keyword=${encodeURIComponent(keyword)}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Network response was not ok');
+
+      const data = await res.json();
+      setShops(data); // 触发上面的 useEffect 自动保存
+      
+      if (useNearbyFilter && userLocation && data.length > 0) {
+        setSelectedShop(data[0]);
+      }
+    } catch (err) {
+      console.error('Search failed:', err);
+      alert("搜索失败，请检查网络连接或后端服务");
+    } finally {
+      setIsSearching(false);
     }
+  };
 
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Network response was not ok');
-
-    const data = await res.json();
-    setShops(data);
-    if (useNearbyFilter && userLocation) {
-      setSelectedShop(data[0] || null);
-    }
-    //localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (err) {
-    console.error('Search failed:', err);
-  } finally {
-    setIsSearching(false);
-  }
-};
-
+  // 3. 登录成功回调
   const handleLoginSuccess = (username: string) => {
     setIsLoggedIn(true);
     setUsername(username);
+    localStorage.setItem("admin_logged_in", "true");
+    localStorage.setItem('admin_username', username);
   };
 
-  const handleLogout = () =>  {
+  const handleLogout = () => {
     setIsLoggedIn(false);
     setUsername(null);
     localStorage.removeItem("admin_logged_in");
-  }
-    // ✅ 补上缺失的 handleSelectShop 函数
+    localStorage.removeItem('admin_username');
+  };
+
   const handleSelectShop = (shop: Shop) => {
     setSelectedShop(shop);
   };
-  // Request user location
+
+  // 4. 获取位置
   const requestLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -94,14 +112,17 @@ const App: React.FC = () => {
           setUserLocation(loc);
           setUseNearbyFilter(true);
         },
-        () => {
-          alert("Location access denied. Showing all shops.");
+        (err) => {
+          console.warn("Location access denied:", err);
+          alert("定位被拒绝，将显示所有店铺。");
         }
       );
+    } else {
+      alert("浏览器不支持定位");
     }
   };
 
-  // Compute filtered shops
+  // 5. 过滤逻辑
   const filteredShops = useMemo(() => {
     if (useNearbyFilter && userLocation) {
       return shops.filter(shop => {
@@ -112,14 +133,12 @@ const App: React.FC = () => {
     return shops;
   }, [shops, useNearbyFilter, userLocation, radiusKm]);
 
-  // ✅ 补上缺失的 fetchShops 函数
+  // 6. 初始化加载数据
   const fetchShops = async () => {
-    // 如果本地已经有数据了，我们通常不需要强制从后端拉取覆盖，除非是首次加载且本地为空
-    // 但为了保险，我们只在本地为空时，才尝试用后端数据填充
     const saved = localStorage.getItem(STORAGE_KEY);
+    // 如果本地有数据，优先显示本地（加快首屏速度）
     if (saved && JSON.parse(saved).length > 0) {
-      // 本地有数据，优先显示本地的，不请求后端（或者请求了也不覆盖）
-      // 这样即使后端挂了或数据旧了，用户看到的也是最新的本地数据
+      // 可选：可以在后台静默更新，这里暂不处理
       return; 
     }
 
@@ -128,35 +147,29 @@ const App: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch shops');
       const data = await response.json();
       
-      // 只有当本地真的没数据时，才存入后端返回的数据
       if (data && data.length > 0) {
-        setShops(data);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        setShops(data); // 触发 useEffect 自动保存
       }
     } catch (error) {
       console.error('Error fetching shops:', error);
-      // 出错就保持现状（空或者本地已有的数据）
     }
   };
-  // Initial shop selection
+
+  useEffect(() => {
+    fetchShops();
+  }, []);
+
+  // 自动选择第一个店铺
   useEffect(() => {
     if (filteredShops.length > 0 && !selectedShop) {
       setSelectedShop(filteredShops[0]);
     }
   }, [filteredShops]);
-   // ✅ 请在这里加上这段代码！
-  useEffect(() => {
-    fetchShops();
-  }, []); 
 
-    // ✅ 修复后的 handleAddShop
-    // ✅ 适配后端 form-data 格式的 handleAddShop
+  // 7. 添加店铺
   const handleAddShop = async (newShop: Shop) => {
     try {
-      // 1. 创建 FormData 对象
       const formData = new FormData();
-      
-      // 2. 填入文本信息
       formData.append('name', newShop.name);
       formData.append('address', newShop.address);
       formData.append('lat', String(newShop.lat));
@@ -166,18 +179,15 @@ const App: React.FC = () => {
       if (newShop.badge_text) formData.append('badge_text', newShop.badge_text);
       if (newShop.new_girls_last_15_days) formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days));
 
-      // 3. 填入图片文件 (如果有)
       if (Array.isArray((newShop as any).imageFiles) && (newShop as any).imageFiles.length > 0) {
         (newShop as any).imageFiles.forEach((file: File) => {
           formData.append('pictures', file); 
         });
       } 
 
-      // 4. 发送请求
       const response = await fetch(`${API_BASE_URL}/shop/add`, {
         method: 'POST',
         body: formData, 
-        // 注意：这里不要手动设置 Content-Type，浏览器会自动处理
       });
 
       if (!response.ok) {
@@ -185,28 +195,23 @@ const App: React.FC = () => {
         throw new Error(errorData.error || '保存失败');
       }
 
-      // 5. 【关键步骤】后端成功后，获取返回的新店铺数据
       const result = await response.json();
       
-      // 6. 手动更新前端列表 和 本地存储
-      // 我们把新店铺加到当前列表后面
-      const updatedShops = [...shops, result];
-      setShops(updatedShops);
+      // 更新状态 -> 触发全局 useEffect 自动保存
+      setShops(prev => [...prev, result]);
       
-      // 立即保存到 localStorage，防止刷新丢失
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedShops));
-
-      // 7. 清理界面
       setShowAdmin(false);
       setSelectedShop(result);
-      alert("✅ 保存成功！数据已写入数据库和本地缓存。");
+      alert("✅ 保存成功！");
 
     } catch (error) {
       console.error('添加店铺失败:', error);
-      alert("❌ 保存失败：" + (error as Error).message + "\n(数据仍保留在本地列表中，未丢失)");
+      alert("❌ 保存失败：" + (error as Error).message);
     }
   };
-    const handleDeleteShop = async (shop: Shop) => {
+
+  // 8. 删除店铺
+  const handleDeleteShop = async (shop: Shop) => {
     if (!confirm(`确定要删除 "${shop.name}" 吗？`)) return;
     
     setDeletingId(shop.id);
@@ -227,12 +232,8 @@ const App: React.FC = () => {
         return;
       }
 
-      // ✅ 关键：前端列表更新
-      const newShops = shops.filter(s => s.id !== shop.id);
-      setShops(newShops);
-      
-      // ✅ 关键：同步更新本地存储，防止刷新后“诈尸”
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newShops));
+      // 更新状态 -> 触发全局 useEffect 自动保存
+      setShops(prev => prev.filter(s => s.id !== shop.id));
 
       if (selectedShop?.id === shop.id) setSelectedShop(null);
       
@@ -243,7 +244,8 @@ const App: React.FC = () => {
       setDeletingId(null);
     }
   };
-      return (
+
+  return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       <Header
         isLoggedIn={isLoggedIn}
@@ -267,7 +269,7 @@ const App: React.FC = () => {
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button
             onClick={requestLocation}
-            className={`p-3 rounded-full shadow-lg transition-all  $ {userLocation ? 'bg-blue-500 text-white' : 'bg-white text-gray-600'}`}
+            className={`p-3 rounded-full shadow-lg transition-all ${userLocation ? 'bg-blue-500 text-white' : 'bg-white text-gray-600'}`}
           >
             <Navigation className="w-6 h-6" />
           </button>
@@ -287,7 +289,7 @@ const App: React.FC = () => {
 
           <button
             onClick={() => setUseNearbyFilter(!useNearbyFilter)}
-            className={`p-3 rounded-full shadow-lg transition-all  $ {useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white text-gray-600'}`}
+            className={`p-3 rounded-full shadow-lg transition-all ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white text-gray-600'}`}
           >
             <Filter className="w-6 h-6" />
           </button>
@@ -319,11 +321,10 @@ const App: React.FC = () => {
           <div className="p-4 flex gap-4 min-w-max">
             {filteredShops.length > 0 ? (
               filteredShops.map((shop) => (
-                // 给每个卡片容器加固定宽度和防压缩属性
-                <div key={shop.name} data-shop-name={shop.name} className="w-[280px] flex-shrink-0">
+                <div key={shop.id || shop.name} data-shop-name={shop.name} className="w-[280px] flex-shrink-0">
                   <ShopCard
                     shop={shop}
-                    isSelected={selectedShop?.name === shop.name}
+                    isSelected={selectedShop?.id === shop.id || selectedShop?.name === shop.name}
                     onClick={() => handleSelectShop(shop)}
                     onDelete={handleDeleteShop}
                     onSave={(updatedShop) => {
