@@ -114,14 +114,28 @@ const App: React.FC = () => {
 
   // ✅ 补上缺失的 fetchShops 函数
   const fetchShops = async () => {
+    // 如果本地已经有数据了，我们通常不需要强制从后端拉取覆盖，除非是首次加载且本地为空
+    // 但为了保险，我们只在本地为空时，才尝试用后端数据填充
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && JSON.parse(saved).length > 0) {
+      // 本地有数据，优先显示本地的，不请求后端（或者请求了也不覆盖）
+      // 这样即使后端挂了或数据旧了，用户看到的也是最新的本地数据
+      return; 
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/shop/shops`);
       if (!response.ok) throw new Error('Failed to fetch shops');
       const data = await response.json();
-      setShops(data);
+      
+      // 只有当本地真的没数据时，才存入后端返回的数据
+      if (data && data.length > 0) {
+        setShops(data);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
     } catch (error) {
       console.error('Error fetching shops:', error);
-      // 可选：这里可以加一个 setError("加载店铺失败")
+      // 出错就保持现状（空或者本地已有的数据）
     }
   };
   // Initial shop selection
@@ -130,6 +144,10 @@ const App: React.FC = () => {
       setSelectedShop(filteredShops[0]);
     }
   }, [filteredShops]);
+   // ✅ 请在这里加上这段代码！
+  useEffect(() => {
+    fetchShops();
+  }, []); 
 
     // ✅ 修复后的 handleAddShop
     // ✅ 适配后端 form-data 格式的 handleAddShop
@@ -188,35 +206,43 @@ const App: React.FC = () => {
       alert("❌ 保存失败：" + (error as Error).message + "\n(数据仍保留在本地列表中，未丢失)");
     }
   };
-  const handleDeleteShop = async (shop: Shop) => {
-  setDeletingId(shop.id);
+    const handleDeleteShop = async (shop: Shop) => {
+    if (!confirm(`确定要删除 "${shop.name}" 吗？`)) return;
+    
+    setDeletingId(shop.id);
 
-  try {
-    // ✅ 改成动态 API_BASE_URL + 正确路径
-    const res = await fetch(`${API_BASE_URL}/shop/del`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        id: shop.id, 
-        token: "my_super_secret_delete_token" 
-      }),
-    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/shop/del`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: shop.id, 
+          token: "my_super_secret_delete_token" 
+        }),
+      });
 
-    const result = await res.json();
-    if (!res.ok || result.error) {
-      alert(result.error || "Failed to delete shop");
-      return;
+      const result = await res.json();
+      if (!res.ok || result.error) {
+        alert(result.error || "删除失败");
+        return;
+      }
+
+      // ✅ 关键：前端列表更新
+      const newShops = shops.filter(s => s.id !== shop.id);
+      setShops(newShops);
+      
+      // ✅ 关键：同步更新本地存储，防止刷新后“诈尸”
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newShops));
+
+      if (selectedShop?.id === shop.id) setSelectedShop(null);
+      
+    } catch (err) {
+      console.error(err);
+      alert("网络错误，删除失败。");
+    } finally {
+      setDeletingId(null);
     }
-
-    setShops(prev => prev.filter(s => s.id !== shop.id));
-    if (selectedShop?.id === shop.id) setSelectedShop(null);
-  } catch (err) {
-    console.error(err);
-    alert("Network error, please try again.");
-  } finally {
-    setDeletingId(null);
-  }
-};
+  };
       return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       <Header
@@ -293,7 +319,8 @@ const App: React.FC = () => {
           <div className="p-4 flex gap-4 min-w-max">
             {filteredShops.length > 0 ? (
               filteredShops.map((shop) => (
-                <div key={shop.name} data-shop-name={shop.name}>
+                // 给每个卡片容器加固定宽度和防压缩属性
+                <div key={shop.name} data-shop-name={shop.name} className="w-[280px] flex-shrink-0">
                   <ShopCard
                     shop={shop}
                     isSelected={selectedShop?.name === shop.name}
