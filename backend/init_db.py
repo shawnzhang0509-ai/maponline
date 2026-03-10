@@ -9,7 +9,7 @@ with app.app_context():
     from app.models.picture import Picture
     
     # 删除旧表（可选，但推荐）
-    db.drop_all()
+    #db.drop_all()
     
     # 创建新表
     db.create_all()
