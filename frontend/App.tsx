@@ -166,48 +166,25 @@ const App: React.FC = () => {
     }
   }, [filteredShops]);
 
-  // 7. 添加店铺
-  const handleAddShop = async (newShop: Shop) => {
-    try {
-      const formData = new FormData();
-      formData.append('name', newShop.name);
-      formData.append('address', newShop.address);
-      formData.append('lat', String(newShop.lat));
-      formData.append('lng', String(newShop.lng));
-      formData.append('phone', newShop.phone || '');
-      
-      if (newShop.badge_text) formData.append('badge_text', newShop.badge_text);
-      if (newShop.new_girls_last_15_days) formData.append('new_girls_last_15_days', String(newShop.new_girls_last_15_days));
+    // 7. 添加店铺 (修复版：不再重复发送请求)
+  const handleAddShop = (newShop: Shop) => {
+    // 🛡️ 检查：如果名字已经存在，直接报错
+    const nameExists = shops.some(
+      (s) => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase()
+    );
 
-      if (Array.isArray((newShop as any).imageFiles) && (newShop as any).imageFiles.length > 0) {
-        (newShop as any).imageFiles.forEach((file: File) => {
-          formData.append('pictures', file); 
-        });
-      } 
-
-      const response = await fetch(`${API_BASE_URL}/shop/add`, {
-        method: 'POST',
-        body: formData, 
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '保存失败');
-      }
-
-      const result = await response.json();
-      
-      // 更新状态 -> 触发全局 useEffect 自动保存
-      setShops(prev => [...prev, result]);
-      
-      setShowAdmin(false);
-      setSelectedShop(result);
-      alert("✅ 保存成功！");
-
-    } catch (error) {
-      console.error('添加店铺失败:', error);
-      alert("❌ 保存失败：" + (error as Error).message);
+    if (nameExists) {
+      alert(`⚠️ 错误：店铺 "${newShop.name}" 已经存在了！\n请换个名字。`);
+      return; 
     }
+
+    // ✅ 仅更新本地列表 (AdminPanel 已经负责发送给后端了)
+    setShops([...shops, newShop]);
+    
+    setShowAdmin(false);
+    setSelectedShop(newShop);
+    
+    console.log("✅ 添加成功:", newShop.name);
   };
 
   // 8. 删除店铺
