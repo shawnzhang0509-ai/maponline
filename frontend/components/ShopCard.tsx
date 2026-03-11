@@ -45,13 +45,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const defaultImg = 'https://picsum.photos/seed/massage/400/300';
   const mainImg = shop.pictures && shop.pictures.length > 0 ? shop.pictures[0] : defaultImg;
 
-  const handleSave = async () => {
+    const handleSave = async () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     if (!API_BASE_URL) {
-      alert('API URL not configured');
+      alert('❌ 错误: API URL 未配置 (检查 .env 文件)');
       return;
     }
 
+    // 1. 准备数据
     const formData = new FormData();
     formData.append('name', editData.name);
     formData.append('address', editData.address);
@@ -69,26 +70,82 @@ const ShopCard: React.FC<ShopCardProps> = ({
       formData.append('pictures', file);
     });
 
+    const shopIdentifier = encodeURIComponent(editData.name); 
+    const url = `${API_BASE_URL}/shop/update/${shopIdentifier}`;
+    console.log('🚀 正在请求:', url);
+
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/shop/update/${editData.id}`,
-        {
-          method: 'POST',
-          body: formData,
-        }
-      );
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const responseText = await res.text(); 
+      console.log('📩 服务器原始响应:', responseText);
 
       if (!res.ok) {
-        throw new Error('Update failed');
+        let errorMsg = `服务器拒绝请求 (Status: ${res.status})`;
+        try {
+          const jsonErr = JSON.parse(responseText);
+          if (jsonErr.message) errorMsg += `\n详情: ${jsonErr.message}`;
+          else if (jsonErr.error) errorMsg += `\n详情: ${jsonErr.error}`;
+        } catch (e) {
+          if (responseText) errorMsg += `\n详情: ${responseText.substring(0, 100)}`;
+        }
+        console.error('❌ 更新失败:', errorMsg);
+        alert(`❌ 更新失败:\n${errorMsg}`);
+        return;
       }
 
-      const updatedShop: Shop = await res.json();
-      onSave(updatedShop);
+      let updatedShop;
+      try {
+        updatedShop = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error('服务器返回的数据不是有效的 JSON');
+      }
+
+      console.log('🔍【调试】后端返回的原始数据:', updatedShop);
+
+      // ✅【核心修复：拼接完整 URL】
+      const fixedPictures = (updatedShop.pictures || []).map((pic: any) => {
+        if (!pic.url) return pic;
+        
+        const fullUrl = pic.url.startsWith('http') 
+          ? pic.url 
+          : `${API_BASE_URL}${pic.url}`;
+          
+        return { ...pic, url: fullUrl };
+      });
+
+      console.log('✅ 图片 URL 已修复:', fixedPictures);
+
+      // ✅【关键步骤：构造最终数据并通知父组件】
+      const finalData = { ...updatedShop, pictures: fixedPictures };
+
+      // 1. 通知父组件更新列表
+      onSave(finalData);
+
+      // 2. 更新本地 editData (确保再次编辑时图片也是对的)
+      setEditData(prev => ({
+        ...prev,
+        pictures: fixedPictures,
+        newPictures: [],
+        removePictureIds: [],
+      }));
+
+      // 3. 退出编辑模式
       setIsEditing(false);
+      
+      // 4. 清理预览
       setPreviewImage(null);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to update shop');
+
+      setTimeout(() => {
+        alert('✅ 保存成功！');
+      }, 100);
+
+    } catch (error) {
+      console.error('💥 保存过程发生异常:', error);
+      alert(`❌ 发生错误: ${error instanceof Error ? error.message : '未知错误'}`);
     }
   };
 
@@ -314,12 +371,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (!deleting && window.confirm(`Are you sure you want to delete " $ {shop.name}"?`)) {
+              if (!deleting && window.confirm(`Are you sure you want to delete "${shop.name}"?`)) {
                 onDelete(shop);
               }
             }}
             disabled={deleting}
-            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md text-xs  $ {
+            className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md text-xs ${
               deleting ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'
             }`}
           >
@@ -344,9 +401,28 @@ const ShopCard: React.FC<ShopCardProps> = ({
           {shop.pictures?.map((pic, idx) => (
             <div key={idx} className="w-32 h-full flex-shrink-0 relative">
               <img
-                src={pic.url}
-                alt={`Preview  $ {idx}`}
+                // 🔥 1. 加上时间戳，强制浏览器重新请求，忽略缓存
+                src={`${pic.url}${pic.url.includes('?') ? '&' : '?'}_t=${Date.now()}`}
+                alt={`Preview ${idx}`}
                 className="w-full h-full object-cover bg-gray-50"
+                
+                // 🔥 2. 加载失败时，在控制台打印详细错误
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  console.error(`❌ 图片加载失败!`);
+                  console.error(`   尝试访问: ${target.src}`);
+                  console.error(`   原始数据: ${pic.url}`);
+                  console.error(`   👉 请复制上面的 "尝试访问" 链接到浏览器测试!`);
+                  
+                  // 视觉提示：变红
+                  target.style.backgroundColor = '#fecaca';
+                  target.style.opacity = '0.7';
+                }}
+                
+                // 🔥 3. 加载成功时，在控制台确认
+                onLoad={() => {
+                  console.log(`✅ 图片加载成功: ${pic.url}`);
+                }}
               />
               {/* Badge */}
               {shop.new_girls_last_15_days && idx === 0 && (
@@ -378,7 +454,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <span className="text-sm">Send SMS</span>
           </a>
           <a
-            href={`tel: $ {shop.phone}`}
+            href={`tel:${shop.phone}`}
             className="bg-gray-100 hover:bg-gray-200 p-2.5 rounded-xl text-gray-600 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >

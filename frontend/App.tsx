@@ -11,8 +11,6 @@ import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
-// ⚠️ 注意：如果本地登录失败，请检查 .env 文件中的 VITE_API_BASE_URL
-// 或者确认你的本地后端服务是否在 http://localhost:5000 运行
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const App: React.FC = () => {
@@ -31,7 +29,6 @@ const App: React.FC = () => {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   
-  // 登录状态初始化
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem("admin_logged_in") === "true";
@@ -47,49 +44,40 @@ const App: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
 
-  // ✅【核心修复】全局监听 shops 变化，自动保存到 localStorage
-  // 修复了之前语法错误导致保存逻辑失效的问题
+  // 自动保存
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(shops));
-      console.log('💾 自动保存成功，当前店铺数:', shops.length);
+      console.log('💾 自动保存成功:', shops.length);
     } catch (e) {
       console.error('保存失败:', e);
     }
   }, [shops]);
 
-  // 2. 搜索功能
+  // 搜索
   const handleSearch = async (keyword: string) => {
     setIsSearching(true);
     try {
       let url = `${API_BASE_URL}/shop/shops`;
-      if (keyword) {
-        url += `?keyword=${encodeURIComponent(keyword)}`;
-      }
-
+      if (keyword) url += `?keyword=${encodeURIComponent(keyword)}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Network response was not ok');
-
       const data = await res.json();
-      setShops(data); // 触发上面的 useEffect 自动保存
-      
-      if (useNearbyFilter && userLocation && data.length > 0) {
-        setSelectedShop(data[0]);
-      }
+      setShops(data);
+      if (useNearbyFilter && userLocation && data.length > 0) setSelectedShop(data[0]);
     } catch (err) {
       console.error('Search failed:', err);
-      alert("搜索失败，请检查网络连接或后端服务");
+      alert("搜索失败");
     } finally {
       setIsSearching(false);
     }
   };
 
-  // 3. 登录成功回调
-  const handleLoginSuccess = (username: string) => {
+  const handleLoginSuccess = (u: string) => {
     setIsLoggedIn(true);
-    setUsername(username);
+    setUsername(u);
     localStorage.setItem("admin_logged_in", "true");
-    localStorage.setItem('admin_username', username);
+    localStorage.setItem('admin_username', u);
   };
 
   const handleLogout = () => {
@@ -99,30 +87,22 @@ const App: React.FC = () => {
     localStorage.removeItem('admin_username');
   };
 
-  const handleSelectShop = (shop: Shop) => {
-    setSelectedShop(shop);
-  };
+  const handleSelectShop = (shop: Shop) => setSelectedShop(shop);
 
-  // 4. 获取位置
   const requestLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserLocation(loc);
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           setUseNearbyFilter(true);
         },
-        (err) => {
-          console.warn("Location access denied:", err);
-          alert("定位被拒绝，将显示所有店铺。");
-        }
+        () => alert("定位被拒绝")
       );
     } else {
       alert("浏览器不支持定位");
     }
   };
 
-  // 5. 过滤逻辑
   const filteredShops = useMemo(() => {
     if (useNearbyFilter && userLocation) {
       return shops.filter(shop => {
@@ -133,25 +113,65 @@ const App: React.FC = () => {
     return shops;
   }, [shops, useNearbyFilter, userLocation, radiusKm]);
 
-  // 6. 初始化加载数据
+  // ✅【核心修复】fetchShops 函数 - 已彻底清理重复代码
+    // ✅【终极修复】强制优先从网络获取最新数据，不再被旧缓存拦截
   const fetchShops = async () => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    // 如果本地有数据，优先显示本地（加快首屏速度）
-    if (saved && JSON.parse(saved).length > 0) {
-      // 可选：可以在后台静默更新，这里暂不处理
-      return; 
-    }
-
+    console.log('🔄 开始加载 (强制网络优先模式)...');
+    
+    // 1. 无论有没有缓存，先尝试从网络获取最新数据
     try {
       const response = await fetch(`${API_BASE_URL}/shop/shops`);
-      if (!response.ok) throw new Error('Failed to fetch shops');
-      const data = await response.json();
       
-      if (data && data.length > 0) {
-        setShops(data); // 触发 useEffect 自动保存
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      let data = await response.json();
+      console.log('🌐 网络数据获取成功，店铺数量:', data.length);
+
+      // 2. 【关键】即使是网络数据，也执行一次路径修复 (防止后端返回相对路径)
+      const fixedData = data.map((shop: any) => ({
+        ...shop,
+        pictures: shop.pictures?.map((pic: any) => ({
+          ...pic,
+          // 只要是 /files/ 开头，就补全域名
+          url: pic.url && pic.url.startsWith('/files/') 
+            ? `${API_BASE_URL}${pic.url}` 
+            : pic.url 
+        })) || []
+      }));
+
+      // 3. 更新状态 -> 这会触发 useEffect 自动保存到 localStorage
+      // 这样 localStorage 里的旧坏数据就被新好数据覆盖掉了！
+      setShops(fixedData);
+      console.log('✅ 数据已更新并自动覆盖本地缓存');
+
     } catch (error) {
-      console.error('Error fetching shops:', error);
+      console.error('❌ 网络请求失败:', error);
+      
+      // 4. 只有当网络彻底失败时，才降级使用本地缓存
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        console.warn('⚠️ 网络不可用，降级读取本地缓存...');
+        try {
+          const parsedData = JSON.parse(saved);
+          // 缓存数据也要修复一下路径
+          const fixedCachedData = parsedData.map((shop: any) => ({
+            ...shop,
+            pictures: shop.pictures?.map((pic: any) => ({
+              ...pic,
+              url: pic.url && pic.url.startsWith('/files/') 
+                ? `${API_BASE_URL}${pic.url}` 
+                : pic.url 
+            })) || []
+          }));
+          setShops(fixedCachedData);
+        } catch (e) {
+          console.error('💥 本地缓存也损坏了', e);
+        }
+      } else {
+        alert("无法加载数据：网络失败且无本地缓存。");
+      }
     }
   };
 
@@ -159,64 +179,41 @@ const App: React.FC = () => {
     fetchShops();
   }, []);
 
-  // 自动选择第一个店铺
   useEffect(() => {
     if (filteredShops.length > 0 && !selectedShop) {
       setSelectedShop(filteredShops[0]);
     }
   }, [filteredShops]);
 
-    // 7. 添加店铺 (修复版：不再重复发送请求)
   const handleAddShop = (newShop: Shop) => {
-    // 🛡️ 检查：如果名字已经存在，直接报错
-    const nameExists = shops.some(
-      (s) => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase()
-    );
-
-    if (nameExists) {
-      alert(`⚠️ 错误：店铺 "${newShop.name}" 已经存在了！\n请换个名字。`);
-      return; 
+    if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
+      alert(`店铺 "${newShop.name}" 已存在`);
+      return;
     }
-
-    // ✅ 仅更新本地列表 (AdminPanel 已经负责发送给后端了)
     setShops([...shops, newShop]);
-    
     setShowAdmin(false);
     setSelectedShop(newShop);
-    
-    console.log("✅ 添加成功:", newShop.name);
   };
 
-  // 8. 删除店铺
   const handleDeleteShop = async (shop: Shop) => {
-    if (!confirm(`确定要删除 "${shop.name}" 吗？`)) return;
-    
+    if (!confirm(`删除 "${shop.name}"?`)) return;
     setDeletingId(shop.id);
-
     try {
       const res = await fetch(`${API_BASE_URL}/shop/del`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          id: shop.id, 
-          token: "my_super_secret_delete_token" 
-        }),
+        body: JSON.stringify({ id: shop.id, token: "my_super_secret_delete_token" }),
       });
-
       const result = await res.json();
       if (!res.ok || result.error) {
         alert(result.error || "删除失败");
         return;
       }
-
-      // 更新状态 -> 触发全局 useEffect 自动保存
       setShops(prev => prev.filter(s => s.id !== shop.id));
-
       if (selectedShop?.id === shop.id) setSelectedShop(null);
-      
     } catch (err) {
       console.error(err);
-      alert("网络错误，删除失败。");
+      alert("网络错误");
     } finally {
       setDeletingId(null);
     }
@@ -242,121 +239,56 @@ const App: React.FC = () => {
           onMarkerClick={handleSelectShop}
         />
 
-        {/* Floating Controls */}
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
-          <button
-            onClick={requestLocation}
-            className={`p-3 rounded-full shadow-lg transition-all ${userLocation ? 'bg-blue-500 text-white' : 'bg-white text-gray-600'}`}
-          >
+          <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}>
             <Navigation className="w-6 h-6" />
           </button>
-
-          <button
-            onClick={() => {
-              if (!isLoggedIn) {
-                setShowLogin(true);
-              } else {
-                setShowAdmin(true);
-              }
-            }}
-            className="p-3 bg-white text-rose-500 rounded-full shadow-lg hover:bg-rose-50 transition-colors"
-          >
+          <button onClick={() => isLoggedIn ? setShowAdmin(true) : setShowLogin(true)} className="p-3 bg-white text-rose-500 rounded-full shadow-lg">
             <Plus className="w-6 h-6" />
           </button>
-
-          <button
-            onClick={() => setUseNearbyFilter(!useNearbyFilter)}
-            className={`p-3 rounded-full shadow-lg transition-all ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white text-gray-600'}`}
-          >
+          <button onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}>
             <Filter className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Proximity Slider */}
         {useNearbyFilter && userLocation && (
-          <div className="absolute top-4 left-4 right-20 z-[999]">
-            <div className="bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest min-w-[30px]">Range</span>
-              <input
-                type="range"
-                min="1"
-                max="50"
-                value={radiusKm}
-                onChange={(e) => setRadiusKm(parseInt(e.target.value))}
-                className="flex-1 accent-rose-500"
-              />
-              <span className="text-sm font-bold text-rose-600 whitespace-nowrap">{radiusKm}km</span>
-            </div>
+          <div className="absolute top-4 left-4 right-20 z-[999] bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
+            <span className="text-xs font-bold text-gray-400">Range</span>
+            <input type="range" min="1" max="50" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
+            <span className="text-sm font-bold text-rose-600">{radiusKm}km</span>
           </div>
         )}
 
-        {/* Bottom Horizontal Scrollable Card List */}
-        <div 
-          className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto"
-          ref={scrollContainerRef}
-        >
+        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto" ref={scrollContainerRef}>
           <div className="p-4 flex gap-4 min-w-max">
             {filteredShops.length > 0 ? (
               filteredShops.map((shop) => (
-                <div key={shop.id || shop.name} data-shop-name={shop.name} className="w-[280px] flex-shrink-0">
+                <div key={shop.id || shop.name} className="w-[280px] flex-shrink-0">
                   <ShopCard
                     shop={shop}
-                    isSelected={selectedShop?.id === shop.id || selectedShop?.name === shop.name}
+                    isSelected={selectedShop?.id === shop.id}
                     onClick={() => handleSelectShop(shop)}
                     onDelete={handleDeleteShop}
-                    onSave={(updatedShop) => {
-                      setShops(prev => prev.map(s => s.id === updatedShop.id ? updatedShop : s));
-                      if (selectedShop?.id === updatedShop.id) setSelectedShop(updatedShop);
+                    onSave={(updated) => {
+                      const fresh = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [] };
+                      setShops(prev => prev.map(s => s.id === fresh.id ? fresh : s));
+                      if (selectedShop?.id === fresh.id) setSelectedShop(fresh);
                     }}
                     deleting={deletingId === shop.id}
                     isLoggedIn={isLoggedIn}
-                    onPreview={(shop, index) => {
-                      setPreviewShop(shop);
-                      setPreviewIndex(index);
-                    }}
+                    onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
                   />
                 </div>
               ))
             ) : (
-              <div className="text-center py-8 text-gray-500 min-w-full">
-                <p>No shops found in this area.</p>
-                <button
-                  onClick={() => setUseNearbyFilter(false)}
-                  className="mt-2 text-rose-500 text-sm font-bold underline"
-                >
-                  Show all shops
-                </button>
-              </div>
+              <div className="text-center py-8 text-gray-500 min-w-full">No shops found.</div>
             )}
           </div>
         </div>
 
-        {/* Modals */}
-        {showAdmin && (
-          <AdminPanel
-            onAddShop={handleAddShop}
-            onClose={() => setShowAdmin(false)}
-          />
-        )}
-
-        {showLogin && (
-          <LoginPanel
-            onLoginSuccess={(username) => {
-              handleLoginSuccess(username);
-              setShowLogin(false);
-            }}
-            onClose={() => setShowLogin(false)}
-          />
-        )}
-
-        {previewShop && (
-          <ImagePreviewModal
-            shop={previewShop}
-            index={previewIndex}
-            onChangeIndex={setPreviewIndex}
-            onClose={() => setPreviewShop(null)}
-          />
-        )}
+        {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
+        {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
+        {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
       </div>
     </div>
   );
