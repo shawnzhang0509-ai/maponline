@@ -71,7 +71,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     });
 
     const shopIdentifier = encodeURIComponent(editData.name); 
-    const url = `${API_BASE_URL}/shop/update/${shopIdentifier}`;
+    const url = `${API_BASE_URL}/shop/update/${shop.id}`;
     console.log('🚀 正在请求:', url);
 
     try {
