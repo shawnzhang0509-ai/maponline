@@ -81,7 +81,7 @@ class ShopRepository:
         if not shop:
             raise ValueError("Shop not found")
 
-        # 更新基础字段
+        # ... (前面的基础字段更新代码保持不变) ...
         fields = ["name", "address", "phone", "lat", "lng", "badge_text"]
         for field in fields:
             if field in data:
@@ -94,13 +94,14 @@ class ShopRepository:
                 new_girls = new_girls.lower() == "true"
             shop.new_girls_last_15_days = new_girls
 
-        # 删除指定图片
+        # --- 🔥 修改开始：处理图片逻辑 ---
+
+        # 1. 处理用户明确指定要删除的图片 (保留原有逻辑)
         remove_ids_str = data.get("remove_picture_ids", "")
         if remove_ids_str:
             try:
                 remove_ids = [int(i) for i in remove_ids_str.split(",") if i.strip()]
                 if remove_ids:
-                    # 查询要删除的中间记录
                     shop_pictures = (
                         self.db.session.query(ShopPicture)
                         .filter(
@@ -111,7 +112,6 @@ class ShopRepository:
                     )
                     picture_ids = [sp.picture_id for sp in shop_pictures]
 
-                    # 删除文件和数据库记录
                     files_folder = current_app.config['FILES_FOLDER']
                     for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
                         file_path = os.path.join(files_folder, pic.url)
@@ -122,9 +122,44 @@ class ShopRepository:
                     for sp in shop_pictures:
                         self.db.session.delete(sp)
             except (ValueError, TypeError):
-                pass  # 忽略无效 ID
+                pass
 
-        # 新增图片
+        # 2. 🆕 新增逻辑：如果上传了新文件，是否要清空所有剩余旧图？
+        # 策略：如果 files 不为空，我们假设用户想要“替换”所有图片。
+        # 如果你想保留“追加”功能，可以去掉这个 if 块，或者在前端控制。
+        if files:
+            current_app.logger.info(f"检测到新图片上传，准备清空店铺 {shop_id} 的旧图片...")
+            
+            # 查询该店铺剩余的所有图片关联
+            all_shop_pictures = (
+                self.db.session.query(ShopPicture)
+                .filter(ShopPicture.shop_id == shop.id)
+                .all()
+            )
+            
+            files_folder = current_app.config['FILES_FOLDER']
+            
+            for sp in all_shop_pictures:
+                # 删除物理文件
+                pic = self.db.session.query(Picture).get(sp.picture_id)
+                if pic:
+                    file_path = os.path.join(files_folder, pic.url)
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            current_app.logger.info(f"删除旧文件: {file_path}")
+                        except Exception as e:
+                            current_app.logger.error(f"删除文件失败 {file_path}: {e}")
+                    
+                    # 删除 Picture 记录
+                    self.db.session.delete(pic)
+                
+                # 删除 ShopPicture 关联记录
+                self.db.session.delete(sp)
+            
+            current_app.logger.info("旧图片已清空，准备存入新图片。")
+
+        # 3. 新增上传的图片
         for f in files:
             file_name, _ = save_uploaded_file(f)
             picture = Picture(url=file_name)
@@ -133,6 +168,9 @@ class ShopRepository:
 
             shop_picture = ShopPicture(shop_id=shop.id, picture_id=picture.id)
             self.db.session.add(shop_picture)
+            current_app.logger.info(f"新图片已添加: {file_name}")
+
+        # --- 🔥 修改结束 ---
 
         self.db.session.commit()
         return shop
