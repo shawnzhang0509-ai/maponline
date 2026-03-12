@@ -87,7 +87,26 @@ const App: React.FC = () => {
     localStorage.removeItem('admin_username');
   };
 
-  const handleSelectShop = (shop: Shop) => setSelectedShop(shop);
+    // ✅ 修改后的 handleSelectShop：点击店铺即设为“中心点”，激活附近筛选
+  const handleSelectShop = (shop: Shop) => {
+    // 1. 选中该店铺 (用于地图高亮和底部卡片展示)
+    setSelectedShop(shop);
+
+    // 2. 【核心技巧】将该店铺的坐标“伪装”成用户当前位置
+    // 这样无需调用 navigator.geolocation，直接激活附近筛选逻辑
+    const mockUserLocation = { lat: shop.lat, lng: shop.lng };
+    setUserLocation(mockUserLocation);
+
+    // 3. 自动开启“附近筛选”模式
+    if (!useNearbyFilter) {
+      setUseNearbyFilter(true);
+    }
+
+    // 4. (可选) 重置默认搜索半径为 5km，体验更好
+    setRadiusKm(5);
+    
+    console.log(`📍 已切换中心点到: ${shop.name} (${shop.lat}, ${shop.lng})，自动开启附近筛选`);
+  };
 
   const requestLocation = () => {
     if (navigator.geolocation) {
@@ -256,9 +275,20 @@ const App: React.FC = () => {
             <span className="text-xs font-bold text-gray-400">Range</span>
             <input type="range" min="1" max="50" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
             <span className="text-sm font-bold text-rose-600">{radiusKm}km</span>
+             {/* 👇 新增：清除伪定位按钮 */}
+            <button 
+              onClick={() => {
+                setUserLocation(null);       // 清除位置
+                setUseNearbyFilter(false);   // 关闭筛选
+                setSelectedShop(null);       // 取消选中店铺
+              }}
+              className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"
+              title="Reset to global view"
+            >
+              ✕ Reset
+            </button>
           </div>
         )}
-
         <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto" ref={scrollContainerRef}>
           <div className="p-4 flex gap-4 min-w-max">
             {filteredShops.length > 0 ? (
