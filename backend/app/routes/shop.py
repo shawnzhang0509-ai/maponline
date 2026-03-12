@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.services.shop_service import ShopService
-from flask import current_app
 
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
@@ -8,11 +7,9 @@ service = ShopService()
 @shop_bp.route('/search', methods=['GET'])
 def search():
     keyword = request.args.get('keyword', '').strip()
-
     results = service.search_shop(keyword)
 
-    file_base_url = current_app.config['FILES_URL']
-    
+    # ✅ 修改点：不再拼接 file_base_url，直接使用 pic.url (完整链接)
     data = [
         {
             "id": shop.id,
@@ -23,11 +20,7 @@ def search():
             "phone": shop.phone,
             "badge_text": shop.badge_text,
             "new_girls_last_15_days": shop.new_girls_last_15_days,
-            "pictures": [{ "id": pic.id, "url": f"{file_base_url}{pic.url}"} for pic in (shop.pictures or [])]
-            # "pictures": [
-            #     f"{file_base_url}{pic.url}"
-            #     for pic in (shop.pictures or [])
-            # ]
+            "pictures": [{"id": pic.id, "url": pic.url} for pic in (shop.pictures or [])]
         }
         for shop in results
     ]
@@ -40,7 +33,7 @@ def add_shop():
     files = request.files.getlist("pictures") 
     shop = service.add_shop(data=data, files=files)
 
-    file_base_url = current_app.config.get('FILES_URL', '/files/')
+    # ✅ 修改点：不再拼接 file_base_url
     shop_data = {
         "id": shop.id,
         "name": shop.name,
@@ -49,10 +42,7 @@ def add_shop():
         "lng": float(shop.lng),
         "phone": shop.phone,
         "new_girls_last_15_days": shop.new_girls_last_15_days,
-        "pictures": [{ "id": pic.id, "url": f"{file_base_url}{pic.url}"} for pic in (shop.pictures or [])]
-        # "pictures": [
-        #     f"{file_base_url}{pic.url}" for pic in (shop.pictures or [])
-        # ]
+        "pictures": [{"id": pic.id, "url": pic.url} for pic in (shop.pictures or [])]
     }
 
     return jsonify(shop_data)
@@ -80,19 +70,16 @@ def delete_shop():
         return jsonify({"success": True, "id": shop_id})
     else:
         return jsonify({"success": False, "id": shop_id})
-    
-# ... (上面原有的代码保持不变) ...
 
-# ✅ 原有路由：支持通过 ID 更新 (保留)
+# ✅ 原有路由：支持通过 ID 更新
 @shop_bp.route('/update/<int:shop_id>', methods=['POST'])
 def update_shop(shop_id):
-    # ... (原有逻辑保持不变) ...
     try:
         data = request.form.to_dict()
         files = request.files.getlist("pictures")
         shop = service.update_shop(shop_id=shop_id, data=data, files=files)
         
-        file_base_url = current_app.config.get('FILES_URL', '/files/')
+        # ✅ 修改点：不再拼接 file_base_url
         shop_data = {
             "id": shop.id,
             "name": shop.name,
@@ -103,7 +90,7 @@ def update_shop(shop_id):
             "badge_text": shop.badge_text,
             "new_girls_last_15_days": shop.new_girls_last_15_days,
             "pictures": [
-                {"id": pic.id, "url": f"{file_base_url}{pic.url}"}
+                {"id": pic.id, "url": pic.url}
                 for pic in (shop.pictures or [])
             ]
         }
@@ -113,25 +100,24 @@ def update_shop(shop_id):
         return jsonify({"error": "更新失败", "details": str(e)}), 500
 
 # 🆕 新增路由：支持通过 店铺名称 更新
-# 🆕 新增路由：支持通过 店铺名称 更新
 @shop_bp.route('/update/<path:shop_name>', methods=['POST'])
 def update_shop_by_name(shop_name):
     try:
         clean_name = shop_name.strip()
-        current_app.logger.info(f"尝试通过名称更新店铺: {clean_name}")
+        current_app.logger.info(f"尝试通过名称更新店铺：{clean_name}")
 
-        # 👇 1. 统一获取文件和表单数据 (只获取一次)
+        # 👇 1. 统一获取文件和表单数据
         files = request.files.getlist("pictures")
         data = request.form.to_dict()
 
-        # 👇 2. 打印调试日志 (关键！)
-        current_app.logger.info(f"📂 收到文件数量: {len(files)}")
+        # 👇 2. 打印调试日志
+        current_app.logger.info(f"📂 收到文件数量：{len(files)}")
         if files:
-            current_app.logger.info(f"📄 文件名列表: {[f.filename for f in files]}")
+            current_app.logger.info(f"📄 文件名列表：{[f.filename for f in files]}")
         else:
-            current_app.logger.warning("⚠️ 警告：前端没有发送任何图片文件！(检查前端 FormData 是否 append 了 'pictures')")
+            current_app.logger.warning("⚠️ 警告：前端没有发送任何图片文件！")
 
-        # 👇 3. 查找店铺 (逻辑不变)
+        # 👇 3. 查找店铺
         all_shops = service.get_all_shops()
         target_shop = None
         
@@ -153,11 +139,10 @@ def update_shop_by_name(shop_name):
 
         current_app.logger.info(f"✅ 找到店铺 ID: {target_shop.id}, 准备更新...")
 
-        # 👇 4. 调用 Service 更新 (使用上面获取的 files 和 data)
+        # 👇 4. 调用 Service 更新
         updated_shop = service.update_shop(shop_id=target_shop.id, data=data, files=files)
 
-        # 👇 5. 构造返回数据
-        file_base_url = current_app.config.get('FILES_URL', '/files/')
+        # 👇 5. 构造返回数据 (✅ 修改点：不再拼接 file_base_url)
         shop_data = {
             "id": updated_shop.id,
             "name": updated_shop.name,
@@ -168,23 +153,21 @@ def update_shop_by_name(shop_name):
             "badge_text": updated_shop.badge_text,
             "new_girls_last_15_days": updated_shop.new_girls_last_15_days,
             "pictures": [
-                {"id": pic.id, "url": f"{file_base_url}{pic.url}"}
+                {"id": pic.id, "url": pic.url}
                 for pic in (updated_shop.pictures or [])
             ]
         }
         return jsonify(shop_data)
 
     except Exception as e:
-        current_app.logger.error(f"Update shop by name failed: {str(e)}", exc_info=True) # exc_info=True 会打印完整堆栈
+        current_app.logger.error(f"Update shop by name failed: {str(e)}", exc_info=True)
         return jsonify({"error": "更新失败", "details": str(e)}), 500
-
-# ... (下面的代码保持不变) ...
 
 @shop_bp.route('/shops', methods=['GET'])
 def get_all_shops():
     shops = service.get_all_shops()
-    file_base_url = current_app.config.get('FILES_URL', '/files/')
     
+    # ✅ 修改点：不再拼接 file_base_url
     data = [
         {
             "id": shop.id,
@@ -196,11 +179,11 @@ def get_all_shops():
             "badge_text": shop.badge_text,
             "new_girls_last_15_days": shop.new_girls_last_15_days,
             "pictures": [
-                {"id": pic.id, "url": f"{file_base_url}{pic.url}"}
+                {"id": pic.id, "url": pic.url}
                 for pic in (shop.pictures or [])
             ]
         }
         for shop in shops
     ]
     
-    return jsonify(data)   
+    return jsonify(data)
