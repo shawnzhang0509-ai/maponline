@@ -39,3 +39,18 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ✅ 手动添加无缝滚动动画 */
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%); /* 向左移动一半宽度，配合双倍数据实现无缝 */
+  }
+}
+
+.animate-scroll-left {
+  animation: scroll-left 20s linear infinite;
+  will-change: transform; /* 性能优化 */
+}
