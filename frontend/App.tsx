@@ -218,7 +218,7 @@ const App: React.FC = () => {
     }
   };
 
-  return (
+    return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       <Header
         isLoggedIn={isLoggedIn}
@@ -271,7 +271,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ✅ 底部滚动列表 (带智能暂停) */}
+        {/* ✅ 底部滚动列表 */}
         <div 
           className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12" 
           style={{ transform: 'translateY(40px)' }}
@@ -291,9 +291,7 @@ const App: React.FC = () => {
             onTouchEnd={() => setIsScrollPaused(false)}
           >
             {filteredShops.length > 0 ? (
-              // 💡 如果想无缝循环，取消下面这行的注释，并注释掉再下一行
-              // [...filteredShops, ...filteredShops].map((shop, index) => (
-              filteredShops.map((shop) => (
+              [...filteredShops, ...filteredShops].map((shop, index) => (
                 <div key={shop.id || shop.name} className="w-[280px] flex-shrink-0">
                   <ShopCard
                     shop={shop}
@@ -314,16 +312,18 @@ const App: React.FC = () => {
             ) : (
               <div className="text-center py-8 text-gray-500 min-w-full">No shops found.</div>
             )}
-          </div>
-        </div>
+          </div> {/* 👈 关闭 scrollContainerRef */}
+        </div> {/* 👈 关闭 overflow-hidden 容器 */}
+        
+      </div> {/* 👈 【新增】关闭 flex-1 容器 (Line 283) */}
 
-        {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
-        {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
-        {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
-      </div>
+      {/* ✅ 模态框组件移到最外层，不要放在滚动列表里 */}
+            {/* 模态框组件 */}
+      {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
+      {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
+      {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
     </div>
   );
 };
 
-// ✅ export default 放在文件最后
 export default App;
