@@ -271,28 +271,27 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ✅ 底部滚动列表 */}
-        <div 
-          className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12" 
-          style={{ transform: 'translateY(40px)' }}
-        >
+        {/* ✅ 底部滚动列表 - 强制测试版 */}
+        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12 pointer-events-none">
+          {/* 
+            注意这里的变化：
+            1. 移除了 isScrollPaused 相关的所有逻辑
+            2. 强制加上 animate-scroll-left 类名
+            3. 强制 style animationPlayState: running
+            4. 父容器加 pointer-events-none 防止遮挡地图点击（可选）
+          */}
           <div 
-            ref={scrollContainerRef}
-            className={`p-4 flex gap-4 min-w-max ${
-              isScrollPaused ? '' : 'animate-scroll-left'
-            }`}
-            style={{
-              animationPlayState: isScrollPaused ? 'paused' : 'running',
-              cursor: isScrollPaused ? 'default' : 'grab',
+            className="flex gap-4 min-w-max animate-scroll-left"
+            style={{ 
+              animation: 'scroll-left 20s linear infinite', // 再次强制指定动画
+              animationPlayState: 'running',
+              padding: '1rem', // p-4
             }}
-            onMouseEnter={() => setIsScrollPaused(true)}
-            onMouseLeave={() => setIsScrollPaused(false)}
-            onTouchStart={() => setIsScrollPaused(true)}
-            onTouchEnd={() => setIsScrollPaused(false)}
           >
             {filteredShops.length > 0 ? (
+              /* ✅ 关键：数据必须重复两次 [...shops, ...shops] 才能无缝循环 */
               [...filteredShops, ...filteredShops].map((shop, index) => (
-                <div key={shop.id || shop.name} className="w-[280px] flex-shrink-0">
+                <div key={`${shop.id}-${index}`} className="w-[280px] flex-shrink-0">
                   <ShopCard
                     shop={shop}
                     isSelected={selectedShop?.id === shop.id}
@@ -310,10 +309,10 @@ const App: React.FC = () => {
                 </div>
               ))
             ) : (
-              <div className="text-center py-8 text-gray-500 min-w-full">No shops found.</div>
+              <div className="text-center py-8 text-gray-500 w-full">No shops found.</div>
             )}
-          </div> {/* 👈 关闭 scrollContainerRef */}
-        </div> {/* 👈 关闭 overflow-hidden 容器 */}
+          </div>
+        </div>
         
       </div> {/* 👈 【新增】关闭 flex-1 容器 (Line 283) */}
 
