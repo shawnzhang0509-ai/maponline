@@ -344,36 +344,32 @@ const ShopCard: React.FC<ShopCardProps> = ({
   }
 
   // ========== 展示模式（原样保留 + 加编辑按钮） ==========
+    // ========== 展示模式 (舒适版) ==========
+    // ========== 展示模式 (微调缩小版) ==========
   return (
     <div
       onClick={onClick}
-      className={`flex-shrink-0 w-[280px] bg-rose-50 rounded-2xl border-rose-500 ring-4 ring-rose-100 shadow-xl overflow-hidden border-2 transition-all duration-300 transform  ${
-        isSelected
-          ? 'border-8 border-red-600 bg-yellow-300 animate-pulse' 
-          : 'border-2 border-gray-200'}
-        transition-all duration-300
-      }`}
+      className={`
+        flex-shrink-0 w-[260px] bg-white rounded-2xl shadow-lg border overflow-hidden 
+        transition-all duration-300 transform cursor-pointer relative
+        ${isSelected 
+          ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50 scale-[1.02]' 
+          : 'border-gray-200 hover:shadow-xl'}
+      `}
     >
-      {/* ✏️ Edit & × Delete buttons (only when logged in) */}
+      {/* ✏️ Edit & × Delete buttons (右上角，位置微调) */}
       {isLoggedIn && (
         <div className="absolute top-2 right-2 z-10 flex gap-1">
-          {/* Edit button */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEditing(true);
-            }}
+            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
             className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs shadow-md hover:bg-blue-600"
           >
             ✏️
           </button>
-          {/* Delete button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (!deleting && window.confirm(`Are you sure you want to delete "${shop.name}"?`)) {
-                onDelete(shop);
-              }
+              if (!deleting && window.confirm(`Delete "${shop.name}"?`)) onDelete(shop);
             }}
             disabled={deleting}
             className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md text-xs ${
@@ -385,10 +381,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* Image with badge */}
-      {/* 图片横向滚动容器 */}
+      {/* 图片区：高度从 h-32 降到 h-24 (96px) */}
       <div
-        className="relative h-32 overflow-x-auto overflow-y-hidden scroll-smooth no-scrollbar"
+        className="relative h-24 overflow-x-auto overflow-y-hidden scroll-smooth no-scrollbar bg-gray-100"
         onClick={(e) => {
           e.stopPropagation();
           if (shop.pictures && shop.pictures.length > 0) {
@@ -396,66 +391,60 @@ const ShopCard: React.FC<ShopCardProps> = ({
           }
         }}
       >
-        {/* 所有图片缩略图 */}
-        <div className="flex gap-1 h-full">
+        <div className="flex gap-1 h-full p-1">
           {shop.pictures?.map((pic, idx) => (
-            <div key={idx} className="w-32 h-full flex-shrink-0 relative">
+            <div key={idx} className="w-24 h-full flex-shrink-0 relative rounded-lg overflow-hidden">
               <img
-                // 🔥 1. 加上时间戳，强制浏览器重新请求，忽略缓存
                 src={`${pic.url}${pic.url.includes('?') ? '&' : '?'}_t=${Date.now()}`}
                 alt={`Preview ${idx}`}
-                className="w-full h-full object-cover bg-gray-50"
-                
-                // 🔥 2. 加载失败时，在控制台打印详细错误
+                className="w-full h-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  console.error(`❌ 图片加载失败!`);
-                  console.error(`   尝试访问: ${target.src}`);
-                  console.error(`   原始数据: ${pic.url}`);
-                  console.error(`   👉 请复制上面的 "尝试访问" 链接到浏览器测试!`);
-                  
-                  // 视觉提示：变红
-                  target.style.backgroundColor = '#fecaca';
-                  target.style.opacity = '0.7';
-                }}
-                
-                // 🔥 3. 加载成功时，在控制台确认
-                onLoad={() => {
-                  console.log(`✅ 图片加载成功: ${pic.url}`);
+                  target.style.backgroundColor = '#f3f4f6';
+                  target.style.opacity = '0.5';
                 }}
               />
               {/* Badge */}
               {shop.new_girls_last_15_days && idx === 0 && (
-                <div className="absolute top-2 left-2 bg-rose-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1">
-                  <span>🆕</span>
-                  <span>{shop.badge_text}</span>
+                <div className="absolute top-1 left-1 bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md">
+                  🆕 {shop.badge_text}
                 </div>
               )}
             </div>
           ))}
+          {/* 如果没有图片，显示占位 */}
+          {(!shop.pictures || shop.pictures.length === 0) && (
+             <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+               No Image
+             </div>
+          )}
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 space-y-2">
-        <h3 className="font-bold text-gray-900 truncate pr-2">{shop.name}</h3>
+      {/* 内容区：内边距从 p-4 降到 p-3 */}
+      <div className="p-3 space-y-2">
+        {/* 标题：字体稍小 */}
+        <h3 className="font-bold text-gray-900 text-base truncate pr-6">{shop.name}</h3>
+        
+        {/* 地址：字体稍小，限制高度 */}
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">
           <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5 text-rose-400" />
           <p className="line-clamp-2">{shop.address}</p>
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
+        {/* 按钮区：高度和字体微调 */}
+        <div className="flex items-center gap-2 pt-1">
           <a
             href={getSMSLink(shop.phone, shop.address)}
-            className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
+            className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
             <MessageCircle className="w-4 h-4" />
-            <span className="text-sm">Send SMS</span>
+            <span className="text-sm">SMS</span>
           </a>
           <a
             href={`tel:${shop.phone}`}
-            className="bg-gray-100 hover:bg-gray-200 p-2.5 rounded-xl text-gray-600 transition-colors"
+            className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
             <Phone className="w-5 h-5" />
@@ -464,6 +453,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
       </div>
     </div>
   );
-};
+}; // ✅ 确保这里有闭合括号
 
 export default ShopCard;
