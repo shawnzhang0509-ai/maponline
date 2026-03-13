@@ -275,7 +275,7 @@ const App: React.FC = () => {
         {useNearbyFilter && userLocation && (
           <div className="absolute top-4 left-4 right-20 z-[999] bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
             <span className="text-xs font-bold text-gray-400">Range</span>
-            <input type="range" min="1" max="50" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
+            <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
             <span className="text-sm font-bold text-rose-600">{radiusKm}km</span>
              {/* 👇 新增：清除伪定位按钮 */}
             <button 
@@ -291,7 +291,12 @@ const App: React.FC = () => {
             </button>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto" ref={scrollContainerRef}>
+        {/* 👇 增加了 style={{ transform: 'translateY(40px)' }} 强行下沉，同时保留 pb-12 防止内容贴底 */}
+          <div 
+            className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-x-auto pb-12" 
+            style={{ transform: 'translateY(40px)' }}
+            ref={scrollContainerRef}
+          >
           <div className="p-4 flex gap-4 min-w-max">
             {filteredShops.length > 0 ? (
               filteredShops.map((shop) => (

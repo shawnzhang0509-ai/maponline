@@ -353,7 +353,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         flex-shrink-0 w-[260px] bg-white rounded-2xl shadow-lg border overflow-hidden 
         transition-all duration-300 transform cursor-pointer relative
         ${isSelected 
-          ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50 scale-[1.02]' 
+          ? 'border-rose-500 ring-4 ring-rose-200 bg-yellow-300 animate-pulse scale-[1.02]' 
           : 'border-gray-200 hover:shadow-xl'}
       `}
     >
