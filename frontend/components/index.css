@@ -1,0 +1,41 @@
+/* 1. 保留 Tailwind 的基础指令 (如果原本就有) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================
+   2. 在这里粘贴自定义动画和样式 (文件底部)
+   ========================================= */
+
+/* 无限滚动动画定义 */
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* 应用动画的类 */
+.animate-scroll-left {
+  animation: scroll-left 60s linear infinite;
+  will-change: transform;
+}
+
+/* 隐藏滚动条 (让界面更干净) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 文本超过两行显示省略号 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
