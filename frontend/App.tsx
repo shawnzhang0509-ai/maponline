@@ -271,27 +271,51 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ✅ 底部滚动列表 - 强制测试版 */}
-        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12 pointer-events-none">
+        {/* ✅ 终极自包含版本：自动注入 CSS，无需修改 .css 文件 */}
+        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12">
           {/* 
-            注意这里的变化：
-            1. 移除了 isScrollPaused 相关的所有逻辑
-            2. 强制加上 animate-scroll-left 类名
-            3. 强制 style animationPlayState: running
-            4. 父容器加 pointer-events-none 防止遮挡地图点击（可选）
+            关键点：
+            1. 使用 ref 在组件挂载时动态插入 <style> 标签到 <head>
+            2. 动画名字改为 'scroll-injected' 避免冲突
+            3. 给卡片加了明显的蓝色边框，方便肉眼观察
           */}
           <div 
-            className="flex gap-4 min-w-max animate-scroll-left"
-            style={{ 
-              animation: 'scroll-left 20s linear infinite', // 再次强制指定动画
+            className="flex gap-4 min-w-max"
+            style={{
+              animation: 'scroll-injected 10s linear infinite', // 使用新名字
               animationPlayState: 'running',
-              padding: '1rem', // p-4
+              padding: '1rem',
+              willChange: 'transform'
+            }}
+            ref={(node) => {
+              // 只有当节点存在且样式未注入时才执行
+              if (node && !document.getElementById('injected-scroll-styles')) {
+                const style = document.createElement('style');
+                style.id = 'injected-scroll-styles';
+                // 这里定义了动画关键帧
+                style.innerHTML = `
+                  @keyframes scroll-injected {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                  }
+                `;
+                document.head.appendChild(style);
+                console.log("✅ 动画样式已动态注入到页面头部！");
+              }
             }}
           >
             {filteredShops.length > 0 ? (
-              /* ✅ 关键：数据必须重复两次 [...shops, ...shops] 才能无缝循环 */
+              // 确保数据双倍，否则滚完就空了
               [...filteredShops, ...filteredShops].map((shop, index) => (
-                <div key={`${shop.id}-${index}`} className="w-[280px] flex-shrink-0">
+                <div 
+                  key={`${shop.id}-${index}`} 
+                  className="w-[280px] flex-shrink-0 border-4 border-red-500 bg-white rounded-xl shadow-md"
+                >
+                  {/* 
+                    🔴 注意：我加了 red-500 边框和 bg-white 
+                    如果这个红框在动，说明成功了！
+                    如果红框不动，那就是数据量为 0 或者浏览器彻底禁用了动画
+                  */}
                   <ShopCard
                     shop={shop}
                     isSelected={selectedShop?.id === shop.id}
@@ -309,7 +333,10 @@ const App: React.FC = () => {
                 </div>
               ))
             ) : (
-              <div className="text-center py-8 text-gray-500 w-full">No shops found.</div>
+              <div className="text-center py-8 text-gray-500 w-full font-bold text-xl">
+                ⚠️ 没有店铺数据 ( filteredShops 长度为 0 )<br/>
+                请先搜索或添加店铺！
+              </div>
             )}
           </div>
         </div>
