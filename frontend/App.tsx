@@ -256,6 +256,8 @@ const App: React.FC = () => {
           selectedShop={selectedShop}
           userLocation={userLocation}
           onMarkerClick={handleSelectShop}
+        // ✅ 新增：传递半径数据给地图组件，用于画圆
+          radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} 
         />
 
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
