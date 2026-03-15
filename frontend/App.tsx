@@ -272,74 +272,68 @@ const App: React.FC = () => {
         )}
 
         {/* ✅ 终极自包含版本：自动注入 CSS，无需修改 .css 文件 */}
-        <div className="absolute bottom-0 left-0 right-0 z-[999] bg-transparent shadow-2xl rounded-t-3xl h-[360px] overflow-hidden pb-12">
-          {/* 
-            关键点：
-            1. 使用 ref 在组件挂载时动态插入 <style> 标签到 <head>
-            2. 动画名字改为 'scroll-injected' 避免冲突
-            3. 给卡片加了明显的蓝色边框，方便肉眼观察
-          */}
-          <div 
-            className="flex gap-4 min-w-max"
-            style={{
-              animation: 'scroll-injected 10s linear infinite', // 使用新名字
-              animationPlayState: 'running',
-              padding: '1rem',
-              willChange: 'transform'
-            }}
-            ref={(node) => {
-              // 只有当节点存在且样式未注入时才执行
-              if (node && !document.getElementById('injected-scroll-styles')) {
-                const style = document.createElement('style');
-                style.id = 'injected-scroll-styles';
-                // 这里定义了动画关键帧
-                style.innerHTML = `
-                  @keyframes scroll-injected {
-                    0% { transform: translateX(0); }
-                    100% { transform: translateX(-50%); }
-                  }
-                `;
-                document.head.appendChild(style);
-                console.log("✅ 动画样式已动态注入到页面头部！");
-              }
-            }}
-          >
-            {filteredShops.length > 0 ? (
-              // 确保数据双倍，否则滚完就空了
-              [...filteredShops, ...filteredShops].map((shop, index) => (
-                <div 
-                  key={`${shop.id}-${index}`} 
-                  className="w-[280px] flex-shrink-0 border-4 border-red-500 bg-white rounded-xl shadow-md"
-                >
-                  {/* 
-                    🔴 注意：我加了 red-500 边框和 bg-white 
-                    如果这个红框在动，说明成功了！
-                    如果红框不动，那就是数据量为 0 或者浏览器彻底禁用了动画
-                  */}
-                  <ShopCard
-                    shop={shop}
-                    isSelected={selectedShop?.id === shop.id}
-                    onClick={() => handleSelectShop(shop)}
-                    onDelete={handleDeleteShop}
-                    onSave={(updated) => {
-                      const fresh = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [] };
-                      setShops(prev => prev.map(s => s.id === fresh.id ? fresh : s));
-                      if (selectedShop?.id === fresh.id) setSelectedShop(fresh);
-                    }}
-                    deleting={deletingId === shop.id}
-                    isLoggedIn={isLoggedIn}
-                    onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500 w-full font-bold text-xl">
-                ⚠️ 没有店铺数据 ( filteredShops 长度为 0 )<br/>
-                请先搜索或添加店铺！
+        {/* ✅ 最终完美版：慢速 + 悬停暂停 + 无叠影干扰 */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 z-[999] bg-gradient-to-t from-black/50 to-transparent pt-10 pb-4 rounded-t-3xl h-[380px] overflow-hidden pointer-events-none"
+        // 注意：父容器 pointer-events-none 是为了让地图能点击，但内部我们会重新开启
+      >
+        <div 
+          className="flex gap-4 min-w-max px-4"
+          style={{
+            // 🐢 关键：速度设为 80 秒一圈，非常慢，消除“飞车”感和叠影的不适感
+            animation: 'scroll-injected 80s linear infinite', 
+            animationPlayState: 'running',
+            willChange: 'transform',
+            // 内部元素必须开启指针事件，否则无法点击
+            pointerEvents: 'auto' 
+          }}
+          ref={(node) => {
+            if (node && !document.getElementById('injected-scroll-styles')) {
+              const style = document.createElement('style');
+              style.id = 'injected-scroll-styles';
+              style.innerHTML = `
+                @keyframes scroll-injected {
+                  0% { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+              `;
+              document.head.appendChild(style);
+            }
+          }}
+          // 🖱️ 鼠标移入暂停，移出继续
+          onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = 'paused'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = 'running'; }}
+        >
+          {filteredShops.length > 0 ? (
+            // 数据双倍以实现无缝循环
+            [...filteredShops, ...filteredShops].map((shop, index) => (
+              <div 
+                key={`${shop.id}-${index}`} 
+                className="w-[300px] flex-shrink-0"
+                // 每个卡片独立开启指针事件
+                style={{ pointerEvents: 'auto' }}
+              >
+                <ShopCard
+                  shop={shop}
+                  isSelected={selectedShop?.id === shop.id}
+                  onClick={() => handleSelectShop(shop)}
+                  onDelete={handleDeleteShop}
+                  onSave={(updated) => {
+                    const fresh = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [] };
+                    setShops(prev => prev.map(s => s.id === fresh.id ? fresh : s));
+                    if (selectedShop?.id === fresh.id) setSelectedShop(fresh);
+                  }}
+                  deleting={deletingId === shop.id}
+                  isLoggedIn={isLoggedIn}
+                  onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
+                />
               </div>
-            )}
-          </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-white font-bold text-shadow">No shops found nearby.</div>
+          )}
         </div>
+      </div>
         
       </div> {/* 👈 【新增】关闭 flex-1 容器 (Line 283) */}
 
