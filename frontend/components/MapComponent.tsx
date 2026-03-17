@@ -213,7 +213,20 @@ const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [selectedShop]);
 
-  return <div ref={mapContainerRef} className="w-full h-full" />;
-};
+    return (
+    <div 
+      ref={mapContainerRef} 
+      className="w-full h-full overflow-hidden" // ✅ 1. 添加 overflow-hidden
+      style={{ 
+        maxWidth: '100%',   // ✅ 2. 禁止超过父级
+        width: '100%',      // ✅ 3. 强制全宽
+        boxSizing: 'border-box',
+        // ✅ 4. 【核弹】防止 Leaflet 内部样式覆盖
+        position: 'relative', 
+        zIndex: 0 
+      }} 
+    />
+  );
+}; // <--- 补上这个！
 
 export default MapComponent;

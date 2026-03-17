@@ -17,27 +17,20 @@ interface ShopCardProps {
 }
 
 // ==========================================
-// 🎨 智能标签配置表 (核心修改)
+// 🎨 智能标签配置表
 // ==========================================
 const TAG_CONFIG: Record<string, { icon: string; bg: string; text?: string }> = {
-  // 💎 核心特殊标签
   'diamond': { icon: '💎', bg: 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-blue-300', text: 'Diamond' },
   'vip':     { icon: '👑', bg: 'bg-gradient-to-r from-amber-300 to-amber-500 text-amber-900 shadow-amber-200', text: 'VIP' },
   'new':     { icon: '🆕', bg: 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-300', text: 'New' },
-  
-  // 🔥 热门/特色标签
   'hot':     { icon: '🔥', bg: 'bg-gradient-to-r from-orange-400 to-red-500 text-white shadow-orange-300', text: 'Hot' },
   'fresh':   { icon: '✨', bg: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-teal-200', text: 'Fresh' },
   'nice':    { icon: '💖', bg: 'bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-pink-200', text: 'Nice' },
   'massage': { icon: '💆‍♀️', bg: 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white shadow-purple-200', text: 'Massage' },
-  
-  // 🌏 国籍/语言标签 (白底黑字风格)
   'thai':    { icon: '🇹🇭', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Thai' },
   'chinese': { icon: '🇨🇳', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Chinese' },
   'japanese':{ icon: '🇯🇵', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Japanese' },
   'korean':  { icon: '🇰🇷', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Korean' },
-  
-  // ⚪ 默认样式
   'default': { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' }
 };
 
@@ -139,12 +132,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
   };
 
   // ==========================================
-  // ✅ 使用 Portal 将弹窗渲染到 body 最外层
+  // ✅ 编辑模式 (Portal)
   // ==========================================
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
-        {/* 背景遮罩 */}
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" 
           onClick={() => {
@@ -153,7 +145,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
           }}
         />
         
-        {/* 弹窗主体 */}
         <div 
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
           style={{
@@ -166,8 +157,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
             overflow: 'hidden',
           }}
         >
-          
-          {/* 头部 */}
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
             <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
             <button 
@@ -181,10 +170,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
           </div>
 
-          {/* 内容区 */}
           <div className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-            
-            {/* Name */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
               <input
@@ -195,7 +181,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
             </div>
 
-            {/* Address */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">ADDRESS</label>
               <textarea
@@ -206,7 +191,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
             </div>
 
-            {/* Phone */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">PHONE</label>
               <input
@@ -216,7 +200,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
               />
             </div>
 
-            {/* Coordinates */}
             <div className="bg-gray-50 p-3 rounded-lg border">
               <label className="block text-xs font-bold text-gray-500 mb-1">COORDINATES</label>
               <input
@@ -246,7 +229,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </p>
             </div>
 
-            {/* Pictures */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-2">IMAGES</label>
               <label className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
@@ -298,11 +280,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </div>
             </div>
 
-                        {/* ✅ Tags 输入区域 (已修复预览样式) */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
-                TAGS (Auto-Style)
-              </label>
+              <label className="block text-xs font-bold text-gray-700 mb-1">TAGS (Auto-Style)</label>
               <input
                 type="text"
                 value={editData.badge_text || ''}
@@ -314,7 +293,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 Separate with commas. Keywords like "Diamond", "VIP", "New" get special icons.
               </p>
 
-              {/* 🚀 实时预览：现在使用完整的 TAG_CONFIG，显示大图标和渐变色 */}
               {editData.badge_text && editData.badge_text.trim() !== '' && (
                 <div className="mt-3 flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider self-center mr-1">Preview:</span>
@@ -322,42 +300,24 @@ const ShopCard: React.FC<ShopCardProps> = ({
                     const t = tag.trim();
                     if (!t) return null;
                     const lower = t.toLowerCase();
-                    
-                    // 🔍 关键修复：这里也使用 TAG_CONFIG
                     const config = TAG_CONFIG[lower] || TAG_CONFIG['default'];
                     const display = config.text || (t.charAt(0).toUpperCase() + t.slice(1));
                     
                     return (
                       <span 
                         key={idx} 
-                        className={`
-                          inline-flex items-center gap-1.5 
-                          px-2.5 py-1 rounded-full 
-                          text-xs font-black tracking-wide
-                          shadow-md
-                          ${config.bg}
-                        `}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${config.bg}`}
                       >
-                        {/* 大图标 */}
-                        {config.icon && (
-                          <span className="text-base leading-none shrink-0 filter drop-shadow-sm">
-                            {config.icon}
-                          </span>
-                        )}
-                        {/* 文字 */}
-                        <span className="whitespace-nowrap">
-                          {display}
-                        </span>
+                        {config.icon && <span className="text-base leading-none shrink-0 filter drop-shadow-sm">{config.icon}</span>}
+                        <span className="whitespace-nowrap">{display}</span>
                       </span>
                     );
                   })}
                 </div>
               )}
             </div>
-
           </div>
 
-          {/* 底部操作栏 */}
           <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex gap-3">
             <button
               onClick={() => {
@@ -377,36 +337,22 @@ const ShopCard: React.FC<ShopCardProps> = ({
           </div>
         </div>
 
-        {/* 二次确认弹窗 */}
         {showConfirmSave && (
           <>
-            <div 
-              className="fixed inset-0 bg-black/70 z-[100000]" 
-              onClick={() => setShowConfirmSave(false)}
-            />
+            <div className="fixed inset-0 bg-black/70 z-[100000]" onClick={() => setShowConfirmSave(false)} />
             <div 
               className="fixed z-[100001] bg-white rounded-2xl p-6 w-[90%] max-w-sm shadow-2xl"
-              style={{
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
+              style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
             >
               <h4 className="text-lg font-bold text-gray-800 mb-2">Confirm Save?</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Are you sure you want to save changes to "<strong>{editData.name}</strong>"?
               </p>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setShowConfirmSave(false)}
-                  className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors"
-                >
+                <button onClick={() => setShowConfirmSave(false)} className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={handleSave}
-                  className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
+                <button onClick={handleSave} className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Check className="w-4 h-4" /> Confirm
                 </button>
               </div>
@@ -419,8 +365,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
     return createPortal(modalContent, document.body);
   }
 
-    // ==========================================
-  // 展示模式 (修复版：标签独立于图片存在)
+  // ==========================================
+  // ✅ 展示模式 (最终修复版)
   // ==========================================
   return (
     <div
@@ -433,7 +379,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           : 'border-gray-200 hover:shadow-xl hover:-translate-y-1'}
       `}
     >
-      {/* ✅ 核心修复：操作按钮 (编辑/删除) */}
+      {/* 操作按钮 */}
       {isLoggedIn && (
         <div className="absolute top-2 right-2 z-50 flex gap-1">
           <button
@@ -457,13 +403,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* ✅ 核心修复：标签层 (移到最外层，不依赖图片) */}
+      {/* 标签层 */}
       {shop.badge_text && shop.badge_text.trim() !== '' && (
         <div className="absolute top-3 left-3 z-40 flex flex-wrap gap-2 max-w-[85%] pointer-events-none">
           {shop.badge_text.split(',').map((tagStr, tIdx) => {
             const rawTag = tagStr.trim();
             if (!rawTag) return null;
-
             const lowerTag = rawTag.toLowerCase();
             const config = TAG_CONFIG[lowerTag] || TAG_CONFIG['default'];
             const displayText = config.text || (rawTag.charAt(0).toUpperCase() + rawTag.slice(1));
@@ -471,46 +416,39 @@ const ShopCard: React.FC<ShopCardProps> = ({
             return (
               <span 
                 key={tIdx} 
-                className={`
-                  inline-flex items-center gap-1.5 
-                  px-2.5 py-1 rounded-full 
-                  text-xs font-black tracking-wide
-                  shadow-lg backdrop-blur-sm
-                  ${config.bg}
-                `}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black tracking-wide shadow-lg backdrop-blur-sm ${config.bg}`}
               >
-                {config.icon && (
-                  <span className="text-lg leading-none shrink-0 filter drop-shadow-md">
-                    {config.icon}
-                  </span>
-                )}
-                <span className="whitespace-nowrap">
-                  {displayText}
-                </span>
+                {config.icon && <span className="text-lg leading-none shrink-0 filter drop-shadow-md">{config.icon}</span>}
+                <span className="whitespace-nowrap">{displayText}</span>
               </span>
             );
           })}
         </div>
       )}
 
-      {/* 图片区域 (现在只负责显示图片) */}
+      {/* ✅ 图片区域 (防拖动冲突修复版) */}
       <div
-        className="relative h-24 overflow-x-auto overflow-y-hidden scroll-smooth no-scrollbar bg-gray-100"
+        className="relative h-24 overflow-hidden bg-gray-100 select-none"
+        style={{ 
+          touchAction: 'pan-y', 
+          WebkitOverflowScrolling: 'touch' 
+        }}
         onClick={(e) => {
-          e.stopPropagation();
           if (shop.pictures && shop.pictures.length > 0) {
             onPreview?.(shop, 0);
           }
         }}
+        onWheel={(e) => e.preventDefault()} 
       >
-        {shop.pictures && shop.pictures.length > 0 ? (
-          <div className="flex gap-1 h-full p-1">
-            {shop.pictures.map((pic, idx) => (
+        {/* 修改点：去掉 w-fit，改为 w-full，并添加 overflow-hidden 防止内容溢出 */}
+        <div className="flex gap-1 h-full p-1 w-full overflow-hidden pointer-events-none"> 
+          {shop.pictures && shop.pictures.length > 0 ? (
+            shop.pictures.map((pic, idx) => (
               <div key={idx} className="w-24 h-full flex-shrink-0 relative rounded-lg overflow-hidden">
                 <img
                   src={`${pic.url}${pic.url.includes('?') ? '&' : '?'}_t=${Date.now()}`}
                   alt=""
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover pointer-events-auto"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.backgroundColor = '#f3f4f6';
@@ -518,17 +456,16 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   }}
                 />
               </div>
-            ))}
-          </div>
-        ) : (
-          /* 无图片时的占位符 */
-          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-medium bg-gray-50">
-            No Image
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-medium bg-gray-50 pointer-events-none">
+              No Image
+            </div>
+          )}
+        </div> 
       </div>
 
-      {/* 底部信息区 */}
+      {/* ✅ 底部信息区 (唯一的一份) */}
       <div className="p-3 space-y-2">
         <h3 className="font-bold text-gray-900 text-base truncate pr-6">{shop.name}</h3>
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">
