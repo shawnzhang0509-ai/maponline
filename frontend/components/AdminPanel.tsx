@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Upload } from 'lucide-react';
-import { ShopCreate, Shop } from '../types';
+import { X, Upload, Info, DollarSign } from 'lucide-react';
+import { ShopCreate, Shop } from './types';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -19,7 +19,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     lng: 174.7633,
     new_girls_last_15_days: false,
     badge_text: '',
-    pictures: []
+    pictures: [],
+    // 🔥 初始化新字段
+    about_me: '',
+    additional_price: ''
   });
 
   const [tags, setTags] = useState<string[]>([]);
@@ -27,9 +30,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng) return;
+    if (!newShop.name || !newShop.address || !newShop.phone || !newShop.lat || !newShop.lng) {
+      setError("Please fill in all required fields (Name, Address, Phone, Location).");
+      return;
+    }
 
     setIsSubmitting(true); 
+    setError('');
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     const add_api_url = `${API_BASE_URL}/shop/add`;
@@ -46,6 +53,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     
     formData.append("new_girls_last_15_days", String(newShop.new_girls_last_15_days || false));
 
+    // 🔥 添加新字段到 FormData
+    if (newShop.about_me) {
+      formData.append("about_me", newShop.about_me);
+    }
+    if (newShop.additional_price) {
+      formData.append("additional_price", newShop.additional_price);
+    }
+
     (newShop.pictures as File[] | undefined)?.forEach(file => {
       if (file instanceof File) formData.append("pictures", file);
     });
@@ -55,13 +70,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
       const result = await res.json();
 
       if (!res.ok) {
-        setError(result.error || "Failed to add shop");
+        setError(result.error || "Failed to add shop. Please try again.");
         setIsSubmitting(false);
         return;
       }
 
       onAddShop(result);
 
+      // Reset Form
       setNewShop({
         name: '',
         address: '',
@@ -70,14 +86,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
         lng: 174.7633,
         new_girls_last_15_days: false,
         badge_text: '',
-        pictures: []
+        pictures: [],
+        about_me: '',
+        additional_price: ''
       });
       setTags([]);
       setTagInput("");
       onClose();
 
     } catch (err) {
-      setError("Network error. Please try again.");
+      setError("Network error. Please check your connection.");
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -87,7 +105,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      setNewShop(prev => ({ ...prev, pictures: [...prev.pictures, ...Array.from(files)] }));
+      setNewShop(prev => ({ ...prev, pictures: [...(prev.pictures as any[]), ...Array.from(files)] }));
     }
   };
 
@@ -96,38 +114,46 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
           <h2 className="text-xl font-bold text-gray-900">Add New Shop</h2>
-          <button onClick={onClose} className="p-2 -mr-2 text-gray-400">
+          <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 transition">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto no-scrollbar">
           <div className="space-y-4">
+            
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100">
+                {error}
+              </div>
+            )}
+
             {/* Shop Name */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Shop Name</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Shop Name *</label>
               <input
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.name}
                 onChange={e => setNewShop({ ...newShop, name: e.target.value })}
-                placeholder="e.g. 268 Neilson Street"
+                placeholder="e.g. Relaxation Spa"
               />
             </div>
 
             {/* Address */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Address</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Full Address *</label>
               <input
                 required
                 className="w-full px-4 py-3 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-rose-500 outline-none transition-all"
                 value={newShop.address}
                 onChange={e => setNewShop({ ...newShop, address: e.target.value })}
-                placeholder="For SMS template"
+                placeholder="Street address for SMS template"
               />
             </div>
 
-            {/* ✅ Tags: 内嵌式输入框 (像搜索框一样) */}
+            {/* Tags / Badges */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
                 Tags / Badges
@@ -142,7 +168,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
                   ${tagInput ? 'border-rose-500 ring-2 ring-rose-100' : 'border-transparent focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100'}
                 `}
               >
-                {/* 已选择的标签列表 */}
                 {tags.map((tag, idx) => (
                   <span 
                     key={idx} 
@@ -158,8 +183,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
                     </button>
                   </span>
                 ))}
-
-                {/* 实际输入的 Input，无边框，融入背景 */}
                 <input
                   type="text"
                   value={tagInput}
@@ -173,7 +196,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
                         setTagInput("");
                       }
                     } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-                      // 按退格键删除最后一个标签
                       setTags(tags.slice(0, -1));
                     }
                   }}
@@ -187,7 +209,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
             {/* Coordinates */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                Coordinates (Paste from Google Maps)
+                Coordinates (Paste from Google Maps) *
               </label>
              <input
               type="text"
@@ -206,15 +228,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
               }}
             />
               {newShop.lat && newShop.lng && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Parsed: {newShop.lat.toFixed(6)}, {newShop.lng.toFixed(6)}
+                <p className="text-xs text-green-600 font-bold mt-1 flex items-center gap-1">
+                  ✓ Parsed: {newShop.lat.toFixed(6)}, {newShop.lng.toFixed(6)}
                 </p>
               )}
             </div>
 
             {/* Phone */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Phone Number</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Phone Number *</label>
               <input
                 required
                 type="tel"
@@ -225,15 +247,45 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
               />
             </div>
 
+            {/* 🔥 NEW: About Me */}
+            <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
+              <label className="block text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Info size={14} /> About Me / Therapist Intro
+              </label>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-rose-200 focus:ring-2 focus:ring-rose-500 outline-none transition-all text-sm text-gray-700 resize-none"
+                value={newShop.about_me}
+                onChange={e => setNewShop({ ...newShop, about_me: e.target.value })}
+                placeholder="Hi, I'm Sarah. Specializing in deep tissue..."
+              />
+              <p className="text-[10px] text-rose-400 mt-1">Displayed in a highlighted box on the detail page.</p>
+            </div>
+
+            {/* 🔥 NEW: Additional Price */}
+            <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
+              <label className="block text-xs font-bold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <DollarSign size={14} /> Additional Price Info
+              </label>
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 rounded-xl bg-white border border-green-200 focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm text-gray-700 resize-none"
+                value={newShop.additional_price}
+                onChange={e => setNewShop({ ...newShop, additional_price: e.target.value })}
+                placeholder={`Extra 30 mins: $50\nOil upgrade: $10`}
+              />
+              <p className="text-[10px] text-green-500 mt-1">Use Enter for new lines. Displayed in a green box.</p>
+            </div>
+
             {/* New Badge Checkbox */}
-            <label className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer">
+            <label className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-gray-200">
               <input
                 type="checkbox"
-                className="w-5 h-5 accent-rose-500"
+                className="w-5 h-5 accent-rose-500 rounded"
                 checked={newShop.new_girls_last_15_days}
                 onChange={e => setNewShop({ ...newShop, new_girls_last_15_days: e.target.checked })}
               />
-              <span className="text-sm font-semibold text-gray-700">Display 🆕 New Badge</span>
+              <span className="text-sm font-semibold text-gray-700">Display 🆕 "New" Badge</span>
             </label>
 
             {/* Photos */}
@@ -241,18 +293,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Photos</label>
               <div className="flex gap-2 flex-wrap mb-2">
                 {(newShop.pictures as File[] | undefined)?.map((file, i) => (
-                  <img
-                    key={i}
-                    src={file instanceof File ? URL.createObjectURL(file) : typeof file === 'string' ? file : ''}
-                    className="w-16 h-16 object-cover rounded-lg border border-gray-100"
-                    alt="preview"
-                  />
+                  <div key={i} className="relative group">
+                    <img
+                      src={file instanceof File ? URL.createObjectURL(file) : typeof file === 'string' ? file : ''}
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-100 shadow-sm"
+                      alt="preview"
+                    />
+                  </div>
                 ))}
               </div>
-              <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-rose-500 hover:border-rose-500 transition-all cursor-pointer">
+              <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:text-rose-500 hover:border-rose-500 hover:bg-rose-50 transition-all cursor-pointer">
                 <Upload className="w-5 h-5" />
-                <span className="text-sm font-medium">Upload Image</span>
-                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                <span className="text-sm font-medium">Upload Images</span>
+                <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageUpload} />
               </label>
             </div>
           </div>
@@ -261,9 +314,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
             type="submit"
             disabled={isSubmitting}
             className={`w-full bg-rose-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-rose-200 active:scale-95 transition-transform sticky bottom-0
-              ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+              ${isSubmitting ? 'opacity-70 cursor-not-allowed bg-gray-400 shadow-none' : 'hover:bg-rose-600'}`}
           >
-            {isSubmitting ? "Submitting..." : "Add Shop to Database"}
+            {isSubmitting ? "Saving to Database..." : "Add Shop"}
           </button>
         </form>
       </div>

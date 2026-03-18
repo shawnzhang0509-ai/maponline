@@ -47,6 +47,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
 
+  // ✅ 关键修正：字段名与后端 shop.py 严格对应 (about_me, additional_price)
   const [editData, setEditData] = useState<ShopEdit>({
     ...shop,
     name: shop.name || '',
@@ -57,6 +58,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
     pictures: Array.isArray(shop.pictures) ? [...shop.pictures] : [],
     new_girls_last_15_days: !!shop.new_girls_last_15_days,
     badge_text: shop.badge_text || '',
+    
+    // 👇 这里必须用 about_me 和 additional_price
+    about_me: shop.about_me || '', 
+    additional_price: shop.additional_price || '',
+    
     newPictures: [],
     removePictureIds: [],
   });
@@ -74,6 +80,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
     formData.append('phone', editData.phone);
     formData.append('lat', String(editData.lat));
     formData.append('lng', String(editData.lng));
+    
+    // ✅ 关键修正：发送的 key 必须与后端 Flask request.form.get() 的 key 一致
+    formData.append('about_me', editData.about_me || '');
+    formData.append('additional_price', editData.additional_price || '');
+
     formData.append('badge_text', editData.badge_text || '');
     formData.append('new_girls_last_15_days', editData.new_girls_last_15_days ? '1' : '0');
     formData.append('remove_picture_ids', editData.removePictureIds.join(','));
@@ -116,10 +127,20 @@ const ShopCard: React.FC<ShopCardProps> = ({
         pictures: fixedPictures,
         new_girls_last_15_days: editData.new_girls_last_15_days, 
         badge_text: editData.badge_text || '',
+        // 确保返回数据也包含正确的字段名
+        about_me: editData.about_me,
+        additional_price: editData.additional_price,
       };
 
       onSave(finalData);
-      setEditData(prev => ({ ...prev, pictures: fixedPictures, newPictures: [], removePictureIds: [] }));
+      setEditData(prev => ({ 
+        ...prev, 
+        pictures: fixedPictures, 
+        newPictures: [], 
+        removePictureIds: [],
+        about_me: editData.about_me,
+        additional_price: editData.additional_price
+      }));
       setIsEditing(false);
       setShowConfirmSave(false);
       
@@ -156,11 +177,13 @@ const ShopCard: React.FC<ShopCardProps> = ({
             maxHeight: '85vh',
             overflow: 'hidden',
           }}
+          onClick={(e) => e.stopPropagation()} // 👈 【重要】防止点击弹窗白色区域本身触发冒泡
         >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
             <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
             <button 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setIsEditing(false);
                 setShowConfirmSave(false);
               }}
@@ -171,41 +194,75 @@ const ShopCard: React.FC<ShopCardProps> = ({
           </div>
 
           <div className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+            {/* NAME */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
               <input
                 value={editData.name || ''}
                 onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                onClick={(e) => e.stopPropagation()} // 👈 已补全
                 className="w-full font-bold text-lg p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 autoFocus
               />
             </div>
 
+            {/* ADDRESS */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">ADDRESS</label>
               <textarea
                 value={editData.address || ''}
                 onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+                onClick={(e) => e.stopPropagation()} // 👈 已补全
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 rows={2}
               />
             </div>
 
+            {/* PHONE */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">PHONE</label>
               <input
                 value={editData.phone || ''}
                 onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
+            {/* ABOUT ME */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">ABOUT ME</label>
+              <textarea
+                value={editData.about_me || ''}
+                onChange={(e) => setEditData({ ...editData, about_me: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Tell customers about your shop..."
+                className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                rows={3}
+              />
+            </div>
+
+            {/* ADDITIONAL PRICE INFO */}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">ADDITIONAL PRICE INFO</label>
+              <input
+                type="text"
+                value={editData.additional_price || ''}
+                onChange={(e) => setEditData({ ...editData, additional_price: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="e.g. $80/1hr, $150/2hrs"
+                className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            {/* COORDINATES */}
             <div className="bg-gray-50 p-3 rounded-lg border">
               <label className="block text-xs font-bold text-gray-500 mb-1">COORDINATES</label>
               <input
                 type="text"
                 placeholder="Paste from Google Maps..."
                 className="w-full px-3 py-2 text-sm border rounded-lg font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
                   const value = e.target.value.trim();
                   const parts = value.split(/[,，\s]+/).filter(p => p !== '');
@@ -229,15 +286,20 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </p>
             </div>
 
+            {/* IMAGES */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-2">IMAGES</label>
-              <label className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <label 
+                className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Upload className="w-4 h-4 text-gray-400" />
                 <span className="text-xs text-gray-500 font-medium">Add Picture</span>
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
@@ -253,14 +315,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   <div key={`old-${idx}`} className="relative aspect-square">
                     <img src={pic.url} alt="" className="w-full h-full object-cover rounded-lg border" />
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setEditData(prev => ({
                           ...prev,
                           pictures: prev.pictures.filter((_, i) => i !== idx),
                           removePictureIds: [...prev.removePictureIds, pic.id],
                         }));
                       }}
-                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-sm"
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-sm hover:bg-red-600"
                     >
                       ×
                     </button>
@@ -270,8 +333,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
                   <div key={`new-${idx}`} className="relative aspect-square">
                     <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover rounded-lg border border-blue-400" />
                     <button
-                      onClick={() => setEditData({ ...editData, newPictures: editData.newPictures.filter((_, i) => i !== idx) })}
-                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditData({ ...editData, newPictures: editData.newPictures.filter((_, i) => i !== idx) })
+                      }}
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow-sm hover:bg-red-600"
                     >
                       ×
                     </button>
@@ -280,12 +346,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
               </div>
             </div>
 
+            {/* TAGS */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">TAGS (Auto-Style)</label>
               <input
                 type="text"
                 value={editData.badge_text || ''}
                 onChange={(e) => setEditData({ ...editData, badge_text: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
                 placeholder="e.g. Diamond, VIP, New, Thai"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
               />
@@ -318,9 +386,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </div>
           </div>
 
+          {/* Bottom Buttons */}
           <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex gap-3">
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setIsEditing(false);
                 setShowConfirmSave(false);
               }}
@@ -329,7 +399,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
               Cancel
             </button>
             <button
-              onClick={() => setShowConfirmSave(true)}
+              onClick={(e) => {
+                e.stopPropagation(); // 👈 【重要】之前漏了这个
+                setShowConfirmSave(true);
+              }}
               className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
             >
               Save Changes
@@ -337,22 +410,42 @@ const ShopCard: React.FC<ShopCardProps> = ({
           </div>
         </div>
 
+        {/* Confirm Modal */}
         {showConfirmSave && (
           <>
-            <div className="fixed inset-0 bg-black/70 z-[100000]" onClick={() => setShowConfirmSave(false)} />
+            <div 
+              className="fixed inset-0 bg-black/70 z-[100000]" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowConfirmSave(false);
+              }} 
+            />
             <div 
               className="fixed z-[100001] bg-white rounded-2xl p-6 w-[90%] max-w-sm shadow-2xl"
               style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+              onClick={(e) => e.stopPropagation()}
             >
               <h4 className="text-lg font-bold text-gray-800 mb-2">Confirm Save?</h4>
               <p className="text-sm text-gray-600 mb-4">
                 Are you sure you want to save changes to "<strong>{editData.name}</strong>"?
               </p>
               <div className="flex gap-3">
-                <button onClick={() => setShowConfirmSave(false)} className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowConfirmSave(false);
+                  }} 
+                  className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors"
+                >
                   Cancel
                 </button>
-                <button onClick={handleSave} className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSave();
+                  }} 
+                  className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
                   <Check className="w-4 h-4" /> Confirm
                 </button>
               </div>
@@ -366,7 +459,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   }
 
   // ==========================================
-  // ✅ 展示模式 (最终修复版)
+  // ✅ 展示模式
   // ==========================================
   return (
     <div
@@ -426,7 +519,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* ✅ 图片区域 (防拖动冲突修复版) */}
+      {/* 图片区域 */}
       <div
         className="relative h-24 overflow-hidden bg-gray-100 select-none"
         style={{ 
@@ -440,7 +533,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
         }}
         onWheel={(e) => e.preventDefault()} 
       >
-        {/* 修改点：去掉 w-fit，改为 w-full，并添加 overflow-hidden 防止内容溢出 */}
         <div className="flex gap-1 h-full p-1 w-full overflow-hidden pointer-events-none"> 
           {shop.pictures && shop.pictures.length > 0 ? (
             shop.pictures.map((pic, idx) => (
@@ -465,7 +557,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div> 
       </div>
 
-      {/* ✅ 底部信息区 (唯一的一份) */}
+      {/* 底部信息区 */}
       <div className="p-3 space-y-2">
         <h3 className="font-bold text-gray-900 text-base truncate pr-6">{shop.name}</h3>
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">

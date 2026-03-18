@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Header from './components/Header';
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
+import ShopDetailPage from './pages/ShopDetailPage';
 import { Shop, UserLocation } from './types';
 import { NZ_CENTER, TAG_CONFIG } from './constants';
 import { calculateDistance } from './utils';
@@ -16,13 +18,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 const COLLAPSED_HEIGHT = 80; 
 const EXPANDED_HEIGHT = 380; 
 const CLICK_THRESHOLD = 5; 
-const AUTO_SCROLL_SPEED = 0.8; // 滚动速度
-const RESUME_DELAY = 2500; // 停止后多久恢复自动滚动
+const AUTO_SCROLL_SPEED = 0.8; 
+const RESUME_DELAY = 2500; 
 
-const App: React.FC = () => {
-  // ==========================================
-  // 1. State 定义
-  // ==========================================
+const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [shops, setShops] = useState<Shop[]>(() => {
     if (typeof window === 'undefined') return [];
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -31,21 +33,15 @@ const App: React.FC = () => {
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  
   const [showAdmin, setShowAdmin] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem("admin_logged_in") === "true";
-  });
-  
-  const [username, setUsername] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('admin_username');
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => typeof window !== 'undefined' && localStorage.getItem("admin_logged_in") === "true");
+  const [username, setUsername] = useState<string | null>(() => typeof window !== 'undefined' ? localStorage.getItem('admin_username') : null);
 
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -55,9 +51,26 @@ const App: React.FC = () => {
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
 
-  // ==========================================
-  // 2. 核心逻辑：标签提取
-  // ==========================================
+  // Handle URL params (returning from detail page)
+  useEffect(() => {
+    const lat = searchParams.get('lat');
+    const lng = searchParams.get('lng');
+    const focusId = searchParams.get('focus');
+    
+    if (lat && lng) {
+      setUserLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
+      setUseNearbyFilter(true);
+      
+      if (focusId) {
+        const target = shops.find(s => s.id.toString() === focusId || s.id === parseInt(focusId));
+        if (target) {
+          setSelectedShop(target);
+          setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
+        }
+      }
+    }
+  }, [searchParams, shops]);
+
   const getShopTags = (shop: any): string[] => {
     const text = shop.badge_text;
     if (!text || typeof text !== 'string' || text.trim() === '') return [];
@@ -67,116 +80,60 @@ const App: React.FC = () => {
     return [cleanText];
   };
 
-  // ==========================================
-  // 3. Memo: 筛选 & 排序
-  // ==========================================
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
-    shops.forEach(shop => {
-      getShopTags(shop).forEach(tag => tagSet.add(tag));
-    });
+    shops.forEach(shop => getShopTags(shop).forEach(tag => tagSet.add(tag)));
     return Array.from(tagSet).sort();
   }, [shops]);
 
   const filteredShops = useMemo(() => {
     let result = [...shops];
-    
     if (useNearbyFilter && userLocation) {
-      result = result.filter(shop => {
-        const dist = calculateDistance(userLocation, { lat: shop.lat, lng: shop.lng });
-        return dist <= radiusKm;
-      });
+      result = result.filter(shop => calculateDistance(userLocation, { lat: shop.lat, lng: shop.lng }) <= radiusKm);
     }
-
     if (selectedTag) {
       const targetTag = selectedTag.toLowerCase();
-      result = result.filter(shop => {
-        return getShopTags(shop).some(tag => tag.toLowerCase() === targetTag); 
-      });
+      result = result.filter(shop => getShopTags(shop).some(tag => tag.toLowerCase() === targetTag));
     }
-
-    // 排序：有定位则按距离，否则保持原序
     if (userLocation) {
-      result.sort((a, b) => {
-        const distA = calculateDistance(userLocation, { lat: a.lat, lng: a.lng });
-        const distB = calculateDistance(userLocation, { lat: b.lat, lng: b.lng });
-        return distA - distB;
-      });
+      result.sort((a, b) => calculateDistance(userLocation, { lat: a.lat, lng: a.lng }) - calculateDistance(userLocation, { lat: b.lat, lng: b.lng }));
     }
-
-    // 选中置顶
     if (selectedShop) {
       const others = result.filter(s => s.id !== selectedShop.id);
       result = [selectedShop, ...others];
     }
-
     return result;
   }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTag, selectedShop]);
 
-  // ==========================================
-  // 4. 🚀 智能自动滚动逻辑 (核心修改)
-  // ==========================================
+  // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
   const isDraggingList = useRef(false);
   const startX = useRef(0);
   const currentTranslateX = useRef(0); 
   const dragStartX = useRef(0); 
-  
   const animationFrameId = useRef<number | null>(null);
   const resumeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isPausedByUser = useRef(false); // 用户是否手动暂停了
+  const isPausedByUser = useRef(false);
 
-  // 开始自动滚动
   const startAutoScroll = () => {
-    if (animationFrameId.current || !isExpanded || isPausedByUser.current) return;
-    
-    // 如果选中了店铺，不自动滚动，让用户安静看
-    if (selectedShop) return;
-
+    if (animationFrameId.current || !isExpanded || isPausedByUser.current || selectedShop) return;
     const run = () => {
       const container = scrollRef.current;
-      if (!container) {
-        animationFrameId.current = requestAnimationFrame(run);
-        return;
-      }
-
-      const cardWidth = 260 + 16; // 260px width + 16px margin
+      if (!container) { animationFrameId.current = requestAnimationFrame(run); return; }
+      const cardWidth = 260 + 16;
       const totalContentWidth = filteredShops.length * cardWidth;
-      const viewportWidth = window.innerWidth - 32; // px-4 * 2
-
-      // 如果内容不够宽，不需要滚动（或者你可以强制让它滚，这里设为不滚）
-      // 但为了效果，即使只有1个，我们也让它滚：总宽度 = 内容宽度 + 视口宽度 (制造空隙)
-      // 这里的逻辑是：我们复制了一份数据在下面渲染吗？不，我们靠 translateX 走到负值再跳回 0
-      
-      // 为了实现“从另一端滚出来”，我们需要逻辑上的“双倍长度”或者“循环跳跃”
-      // 简单做法：当 translateX 小于 -(totalContentWidth) 时，瞬间跳回 0
-      // 但为了让它看起来是连续的，通常需要在 DOM 里放两份数据。
-      // 👇 既然你要求店铺少也要滚，那我们在渲染层做手脚（见 JSX 部分），这里只负责移动
-      
       currentTranslateX.current -= AUTO_SCROLL_SPEED;
-
-      // 临界点判断：当滚动距离超过一份内容的总宽度时，重置为 0
-      // 注意：这里假设 JSX 里渲染了两份数据 [...filteredShops, ...filteredShops]
-      // 这样总长度就是 totalContentWidth * 2
-      // 当滚动到 totalContentWidth 时，瞬间跳回 0，视觉上无缝衔接
-      if (Math.abs(currentTranslateX.current) >= totalContentWidth) {
-        currentTranslateX.current = 0;
-      }
-
+      if (Math.abs(currentTranslateX.current) >= totalContentWidth) currentTranslateX.current = 0;
       container.style.transform = `translateX(${currentTranslateX.current}px)`;
       animationFrameId.current = requestAnimationFrame(run);
     };
-
     animationFrameId.current = requestAnimationFrame(run);
   };
 
   const stopAutoScroll = () => {
-    if (animationFrameId.current) {
-      cancelAnimationFrame(animationFrameId.current);
-      animationFrameId.current = null;
-    }
+    if (animationFrameId.current) { cancelAnimationFrame(animationFrameId.current); animationFrameId.current = null; }
   };
-
+  
   const scheduleResume = () => {
     if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
     resumeTimerRef.current = setTimeout(() => {
@@ -187,41 +144,28 @@ const App: React.FC = () => {
     }, RESUME_DELAY);
   };
 
-  // 监听数据变化和展开状态，自动启停
   useEffect(() => {
     stopAutoScroll();
     if (isExpanded && filteredShops.length > 0 && !selectedShop && !isPausedByUser.current) {
-      const timer = setTimeout(() => {
-        startAutoScroll();
-      }, 500);
+      const timer = setTimeout(() => startAutoScroll(), 500);
       return () => clearTimeout(timer);
     }
-    return () => {
-      stopAutoScroll();
-      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    };
-  }, [isExpanded, filteredShops.length, selectedShop]); // 依赖项变化时重启
+    return () => { stopAutoScroll(); if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current); };
+  }, [isExpanded, filteredShops.length, selectedShop]);
 
-  // --- 列表拖拽事件 ---
   const handleListDragStart = (clientX: number) => {
     isDraggingList.current = true;
-    isPausedByUser.current = true; // 用户动手了，标记为暂停
+    isPausedByUser.current = true;
     startX.current = clientX;
     dragStartX.current = clientX;
-    
-    if (scrollRef.current) {
-      scrollRef.current.style.cursor = 'grabbing';
-      scrollRef.current.style.transition = 'none';
-    }
+    if (scrollRef.current) { scrollRef.current.style.cursor = 'grabbing'; scrollRef.current.style.transition = 'none'; }
     stopAutoScroll();
     if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-
     window.addEventListener('mousemove', handleListMouseMove);
     window.addEventListener('mouseup', handleListMouseUp);
     window.addEventListener('touchmove', handleListTouchMove, { passive: false }); 
     window.addEventListener('touchend', handleListMouseUp);
   };
-
   const handleListMouseMove = (e: MouseEvent) => {
     if (!isDraggingList.current || !scrollRef.current) return;
     const walk = e.clientX - startX.current;
@@ -229,7 +173,6 @@ const App: React.FC = () => {
     scrollRef.current.style.transform = `translateX(${currentTranslateX.current}px)`;
     startX.current = e.clientX; 
   };
-
   const handleListTouchMove = (e: TouchEvent) => {
     if (!isDraggingList.current || !scrollRef.current) return;
     const walk = e.touches[0].clientX - startX.current;
@@ -237,41 +180,54 @@ const App: React.FC = () => {
     scrollRef.current.style.transform = `translateX(${currentTranslateX.current}px)`;
     startX.current = e.touches[0].clientX;
   };
-
   const handleListMouseUp = () => {
     if (!isDraggingList.current) return;
     isDraggingList.current = false;
-    
-    if (scrollRef.current) {
-      scrollRef.current.style.cursor = 'grab';
-      scrollRef.current.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
-      
-      // 可选：边界修正，防止滚到空白处太多
-      const cardWidth = 260 + 16;
-      const totalContentWidth = filteredShops.length * cardWidth;
-      
-      // 如果滚出了左边界太远，修正一下（简单的回弹逻辑，非必须）
-      // 这里为了保持循环流畅，不做硬性限制，靠自动滚动复位
-    }
-    
+    if (scrollRef.current) { scrollRef.current.style.cursor = 'grab'; scrollRef.current.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'; }
     window.removeEventListener('mousemove', handleListMouseMove);
     window.removeEventListener('mouseup', handleListMouseUp);
     window.removeEventListener('touchmove', handleListTouchMove);
     window.removeEventListener('touchend', handleListMouseUp);
-
-    // 用户松手后，延迟恢复自动滚动
     scheduleResume();
   };
 
+  // Two-Step Click Logic
   const handleCardClick = (shop: Shop, currentEventClientX: number) => {
     const distance = Math.abs(currentEventClientX - dragStartX.current);
     if (distance > CLICK_THRESHOLD) return;
-    handleSelectShop(shop);
+
+    if (selectedShop && selectedShop.id === shop.id) {
+      const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      navigate(`/shop/${slug}`);
+      return;
+    }
+
+    setSelectedShop(shop);
+    if (!useNearbyFilter) {
+      setUseNearbyFilter(true);
+      setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setRadiusKm(5);
+    }
+    if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
+    stopAutoScroll();
   };
 
-  // ==========================================
-  // 5. 📱 抽屉上下滑动逻辑
-  // ==========================================
+  const handleMarkerClick = (shop: Shop) => {
+     if (selectedShop && selectedShop.id === shop.id) {
+       const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+       navigate(`/shop/${slug}`);
+     } else {
+       setSelectedShop(shop);
+       if (!useNearbyFilter) {
+          setUseNearbyFilter(true);
+          setUserLocation({ lat: shop.lat, lng: shop.lng });
+       }
+       if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
+       stopAutoScroll();
+     }
+  };
+
+  // Drawer Logic
   const drawerRef = useRef<HTMLDivElement>(null);
   const isDraggingDrawer = useRef(false);
   const startY = useRef(0);
@@ -284,7 +240,6 @@ const App: React.FC = () => {
     startHeight.current = drawerHeight;
     stopAutoScroll();
   };
-
   const handleDrawerTouchMove = (e: React.TouchEvent) => {
     if (!isDraggingDrawer.current) return;
     const deltaY = startY.current - e.touches[0].clientY;
@@ -293,23 +248,15 @@ const App: React.FC = () => {
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     setDrawerHeight(newHeight);
   };
-
   const handleDrawerTouchEnd = () => {
     if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
     const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
     const willExpand = drawerHeight > threshold;
     setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
-    
-    if (willExpand && !selectedShop) {
-      resumeTimerRef.current = setTimeout(() => {
-        if (!isDraggingList.current) startAutoScroll();
-      }, 500);
-    } else {
-      stopAutoScroll();
-    }
+    if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
+    else stopAutoScroll();
   };
-
   const handleDrawerMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
     isDraggingDrawer.current = true;
@@ -319,7 +266,6 @@ const App: React.FC = () => {
     window.addEventListener('mousemove', handleDrawerMouseMove);
     window.addEventListener('mouseup', handleDrawerMouseUp);
   };
-
   const handleDrawerMouseMove = (e: MouseEvent) => {
     if (!isDraggingDrawer.current) return;
     const deltaY = startY.current - e.clientY;
@@ -328,7 +274,6 @@ const App: React.FC = () => {
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
     setDrawerHeight(newHeight);
   };
-
   const handleDrawerMouseUp = () => {
     isDraggingDrawer.current = false;
     window.removeEventListener('mousemove', handleDrawerMouseMove);
@@ -336,26 +281,17 @@ const App: React.FC = () => {
     const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
     const willExpand = drawerHeight > threshold;
     setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
-    if (willExpand && !selectedShop) {
-       resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
-    } else {
-      stopAutoScroll();
-    }
+    if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
+    else stopAutoScroll();
   };
-
   const toggleDrawer = () => {
     const willExpand = !isExpanded;
     setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
-    if (willExpand && !selectedShop) {
-      resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
-    } else {
-      stopAutoScroll();
-    }
+    if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
+    else stopAutoScroll();
   };
 
-  // ==========================================
-  // 6. 业务函数
-  // ==========================================
+  // Business Logic
   const fetchShops = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/shop/shops`);
@@ -365,14 +301,12 @@ const App: React.FC = () => {
         ...shop,
         pictures: shop.pictures?.map((pic: any) => ({
           ...pic,
-          url: pic.url && pic.url.startsWith('/files/') 
-            ? `${API_BASE_URL}${pic.url}` 
-            : pic.url 
+          url: pic.url && pic.url.startsWith('/files/') ? `${API_BASE_URL}${pic.url}` : pic.url 
         })) || []
       }));
       setShops(fixedData);
     } catch (error) {
-      console.error('❌ 加载失败:', error);
+      console.error('❌ Load failed:', error);
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) setShops(JSON.parse(saved));
     }
@@ -386,84 +320,58 @@ const App: React.FC = () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error('Network response was not ok');
       setShops(await res.json());
-    } catch (err) { alert("搜索失败"); } 
+    } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
   };
 
-  const handleLoginSuccess = (u: string) => {
-    setIsLoggedIn(true); setUsername(u);
-    localStorage.setItem("admin_logged_in", "true");
-    localStorage.setItem('admin_username', u);
-  };
-  const handleLogout = () => {
-    setIsLoggedIn(false); setUsername(null);
-    localStorage.removeItem("admin_logged_in");
-    localStorage.removeItem('admin_username');
-  };
-
-  const handleSelectShop = (shop: Shop) => {
-    if (isDraggingList.current || isDraggingDrawer.current) return;
-    
-    setSelectedShop(shop);
-    setUserLocation({ lat: shop.lat, lng: shop.lng });
-    if (!useNearbyFilter) setUseNearbyFilter(true);
-    setRadiusKm(5);
-    
-    // 选中店铺后，停止自动滚动，并展开抽屉
-    stopAutoScroll();
-    if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
-  };
-
+  const handleLoginSuccess = (u: string) => { setIsLoggedIn(true); setUsername(u); localStorage.setItem("admin_logged_in", "true"); localStorage.setItem('admin_username', u); };
+  const handleLogout = () => { setIsLoggedIn(false); setUsername(null); localStorage.removeItem("admin_logged_in"); localStorage.removeItem('admin_username'); };
+  
   const requestLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          alert("定位成功！列表将按距离排序。");
+          alert("Location found! Sorting by distance.");
         },
-        () => alert("定位被拒绝")
+        () => alert("Location access denied")
       );
-    } else { alert("浏览器不支持定位"); }
+    } else { alert("Geolocation not supported"); }
   };
 
   const handleAddShop = (newShop: Shop) => {
-    if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) {
-      alert(`店铺 "${newShop.name}" 已存在`); return;
-    }
-    setShops([...shops, newShop]); setShowAdmin(false); setSelectedShop(newShop);
+    if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) { alert(`Shop "${newShop.name}" already exists`); return; }
+    setShops([...shops, newShop]); setShowAdmin(false);
+    const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    navigate(`/shop/${slug}`);
   };
 
   const handleDeleteShop = async (shop: Shop) => {
-    if (!confirm(`删除 "${shop.name}"?`)) return;
+    if (!confirm(`Delete "${shop.name}"? This cannot be undone.`)) return;
     setDeletingId(shop.id);
     try {
       const res = await fetch(`${API_BASE_URL}/shop/del`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: shop.id, token: "my_super_secret_delete_token" }),
       });
       const result = await res.json();
-      if (!res.ok || result.error) { alert(result.error || "删除失败"); return; }
+      if (!res.ok || result.error) { alert(result.error || "Delete failed"); return; }
       setShops(prev => prev.filter(s => s.id !== shop.id));
-      if (selectedShop?.id === shop.id) setSelectedShop(null);
-    } catch (err) { console.error(err); alert("网络错误"); } 
+      if (selectedShop?.id === shop.id) {
+        setSelectedShop(null);
+        navigate('/');
+      }
+    } catch (err) { console.error(err); alert("Network error"); } 
     finally { setDeletingId(null); }
   };
 
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(shops)); } catch (e) {} }, [shops]);
   useEffect(() => { fetchShops(); }, []);
-  // 初始自动选中第一个（可选，如果不想自动选中可注释掉，这样更能触发自动滚动）
-  // useEffect(() => { if (filteredShops.length > 0 && !selectedShop) setSelectedShop(filteredShops[0]); }, [filteredShops]);
 
-
-  // ==========================================
-  // 7. JSX Render
-  // ==========================================
   return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
-      
       <Header isLoggedIn={isLoggedIn} username={username} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onSearch={handleSearch} isSearching={isSearching} />
-
+      
       {allTags.length > 0 && (
         <div className="absolute top-[70px] left-0 right-0 z-[998] px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar py-3 pointer-events-auto">
@@ -485,7 +393,7 @@ const App: React.FC = () => {
       )}
 
       <div className="flex-1 relative overflow-hidden">
-        <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleSelectShop} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
+        <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
@@ -495,14 +403,14 @@ const App: React.FC = () => {
 
         {useNearbyFilter && userLocation && (
           <div className="absolute top-4 left-4 right-20 z-[999] bg-white/90 backdrop-blur-sm p-3 rounded-2xl shadow-xl flex items-center gap-4">
-            <span className="text-xs font-bold text-gray-400">Range</span>
+            <span className="text-xs font-bold text-gray-400 uppercase">Range</span>
             <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
-            <span className="text-sm font-bold text-rose-600">{radiusKm}km</span>
+            <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}km</span>
             <button onClick={() => { setUserLocation(null); setUseNearbyFilter(false); setSelectedShop(null); }} className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition">✕ Reset</button>
           </div>
         )}
 
-        {/* 👇 抽屉式底部菜单 */}
+        {/* Drawer */}
         <div 
           ref={drawerRef}
           className="absolute bottom-0 left-0 right-0 z-[999] flex flex-col"
@@ -529,69 +437,60 @@ const App: React.FC = () => {
                  <div 
                   ref={scrollRef}
                   className="flex items-center h-full"
-                  style={{ 
-                    width: 'max-content', 
-                    cursor: 'grab',
-                    touchAction: 'none',
-                    userSelect: 'none',
-                    willChange: 'transform',
-                    transform: `translateX(${currentTranslateX.current}px)`
-                  }}
+                  style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
                   onMouseDown={(e) => handleListDragStart(e.clientX)}
                   onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
                 >
                   {filteredShops.length > 0 ? (
-                    // 🔥 关键：渲染两份列表以实现无缝循环滚动
-                    // 即使只有1个店铺，这里也会渲染2个，从而实现“从另一端滚出”的效果
                     [...filteredShops, ...filteredShops].map((shop, index) => {
                       const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
+                      const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                      const isSelected = selectedShop?.id === shop.id;
+                      
                       return (
-                        <div 
-                          key={uniqueKey} 
-                          className="block flex-shrink-0 flex-grow-0 no-drag"
-                          style={{ 
-                            width: '260px', 
-                            minWidth: '260px', 
-                            maxWidth: '260px',
-                            marginRight: '16px'
-                          }} 
+                        <div
+                          key={uniqueKey}
+                          className="block flex-shrink-0 flex-grow-0 no-drag relative"
+                          style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
                           onClick={(e) => {
-                            const clientX = 'touches' in e ? e.touches[0]?.clientX || 0 : e.clientX;
-                            const finalX = 'changedTouches' in e && e.changedTouches.length > 0 ? e.changedTouches[0].clientX : clientX;
+                            // 获取点击坐标
+                            const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
+                            const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
+                            
+                            // 阻止事件冒泡（虽然 div 没默认行为，但这是好习惯）
+                            e.stopPropagation(); 
+                            
+                            // 调用原有的点击逻辑
                             handleCardClick(shop, finalX);
                           }}
                         >
                           <ShopCard
                             shop={shop}
-                            isSelected={selectedShop?.id === shop.id}
+                            isSelected={isSelected}
                             onClick={() => {}} 
                             onDelete={handleDeleteShop}
                             onSave={(updated) => {
-                               const safeUpdated = {
-                                ...updated,
-                                pictures: updated.pictures ? [...updated.pictures] : [],
-                                new_girls_last_15_days: !!updated.new_girls_last_15_days, 
-                                badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '')
-                              };
+                              const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
                               setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
-                              if (selectedShop?.id === safeUpdated.id) setSelectedShop(safeUpdated);
                             }}
                             deleting={deletingId === shop.id}
                             isLoggedIn={isLoggedIn}
                             onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
                           />
+                          {isSelected && (
+                            <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
+                              Tap again for details
+                            </div>
+                          )}
                         </div>
                       );
                     })
                   ) : (
                     <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                      {selectedTag ? `😕 没有店铺包含标签 "${selectedTag}"` : "No shops found nearby."}
-                      <br/>
-                      <span className="text-xs font-normal opacity-80">(Total: {shops.length})</span>
+                      {selectedTag ? `No shops found with tag "${selectedTag}"` : "No shops found nearby."}
                     </div>
                   )}
                 </div>
-                
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
                   <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600">
                     <ChevronDown size={22} strokeWidth={3} />
@@ -599,29 +498,18 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="h-full w-full flex items-center px-6 no-drag" onClick={toggleDrawer}>
+               <div className="h-full w-full flex items-center px-6 no-drag" onClick={toggleDrawer}>
                 {selectedShop ? (
                   <div className="flex items-center gap-4 text-white w-full">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-lg">
-                      <MapPin size={24} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg truncate">{selectedShop.name}</h3>
-                      <p className="text-xs text-white/80 truncate">{selectedShop.address || 'Click to see details'}</p>
-                    </div>
+                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-lg"><MapPin size={24} /></div>
+                    <div className="flex-1 min-w-0"><h3 className="font-bold text-lg truncate">{selectedShop.name}</h3><p className="text-xs text-white/80 truncate">Tap again to view details</p></div>
                     <ChevronUp className="text-white/80 flex-shrink-0" size={24} />
                   </div>
                 ) : (
-                  <div className="text-white font-bold text-sm flex items-center gap-2">
-                    <MapPin size={16} />
-                    <span>Select a shop on the map</span>
-                    <ChevronUp size={16} />
-                  </div>
+                  <div className="text-white font-bold text-sm flex items-center gap-2"><MapPin size={16} /><span>Select a shop on the map</span><ChevronUp size={16} /></div>
                 )}
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
-                  <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600">
-                    <ChevronUp size={22} strokeWidth={3} />
-                  </button>
+                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
+                  <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600"><ChevronUp size={22} strokeWidth={3} /></button>
                 </div>
               </div>
             )}
@@ -633,6 +521,17 @@ const App: React.FC = () => {
       {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
       {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/shop/:slug" element={<ShopDetailPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 
