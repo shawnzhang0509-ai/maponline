@@ -53,7 +53,10 @@ class ShopRepository:
             lat=data.get('lat'),
             lng=data.get('lng'),
             badge_text=data.get('badge_text'),
-            new_girls_last_15_days=new_girls
+            new_girls_last_15_days=new_girls,
+            # 🔥 新增这两行，从 data 中获取值，如果没有则默认为空字符串
+            about_me=data.get('about_me', ''),
+            additional_price=data.get('additional_price', '')
         )
 
         self.db.session.add(shop)
@@ -86,6 +89,14 @@ class ShopRepository:
         for field in fields:
             if field in data:
                 setattr(shop, field, data[field])
+        
+        # 🔥 在这里插入新增的代码 🔥
+        if 'about_me' in data:
+            shop.about_me = data['about_me']
+        if 'additional_price' in data:
+            shop.additional_price = data['additional_price']
+        # 🔥 新增代码结束 🔥
+
 
         # 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")

@@ -8,24 +8,9 @@ service = ShopService()
 def search():
     keyword = request.args.get('keyword', '').strip()
     results = service.search_shop(keyword)
-
-    # ✅ 修改点：不再拼接 file_base_url，直接使用 pic.url (完整链接)
-    data = [
-        {
-            "id": shop.id,
-            "name": shop.name,
-            "address": shop.address,
-            "lat": shop.lat,
-            "lng": shop.lng,
-            "phone": shop.phone,
-            "badge_text": shop.badge_text,
-            "new_girls_last_15_days": shop.new_girls_last_15_days,
-            "pictures": [{"id": pic.id, "url": pic.url} for pic in (shop.pictures or [])]
-        }
-        for shop in results
-    ]
-
-    return jsonify(data)
+    
+    # ✅ 修改：直接调用 to_dict()，自动包含 about_me 和 additional_price
+    return jsonify([shop.to_dict() for shop in results])
 
 @shop_bp.route('/add', methods=['POST'])
 def add_shop():
@@ -33,19 +18,8 @@ def add_shop():
     files = request.files.getlist("pictures") 
     shop = service.add_shop(data=data, files=files)
 
-    # ✅ 修改点：不再拼接 file_base_url
-    shop_data = {
-        "id": shop.id,
-        "name": shop.name,
-        "address": shop.address,
-        "lat": float(shop.lat),
-        "lng": float(shop.lng),
-        "phone": shop.phone,
-        "new_girls_last_15_days": shop.new_girls_last_15_days,
-        "pictures": [{"id": pic.id, "url": pic.url} for pic in (shop.pictures or [])]
-    }
-
-    return jsonify(shop_data)
+    # ✅ 修改：直接调用 to_dict()
+    return jsonify(shop.to_dict())
 
 # ✅ 临时加一个测试路由
 @shop_bp.route('/list')
@@ -79,22 +53,8 @@ def update_shop(shop_id):
         files = request.files.getlist("pictures")
         shop = service.update_shop(shop_id=shop_id, data=data, files=files)
         
-        # ✅ 修改点：不再拼接 file_base_url
-        shop_data = {
-            "id": shop.id,
-            "name": shop.name,
-            "address": shop.address,
-            "lat": float(shop.lat),
-            "lng": float(shop.lng),
-            "phone": shop.phone,
-            "badge_text": shop.badge_text,
-            "new_girls_last_15_days": shop.new_girls_last_15_days,
-            "pictures": [
-                {"id": pic.id, "url": pic.url}
-                for pic in (shop.pictures or [])
-            ]
-        }
-        return jsonify(shop_data)
+        # ✅ 修改：直接调用 to_dict()
+        return jsonify(shop.to_dict())
     except Exception as e:
         current_app.logger.error(f"Update shop failed: {str(e)}")
         return jsonify({"error": "更新失败", "details": str(e)}), 500
@@ -142,22 +102,8 @@ def update_shop_by_name(shop_name):
         # 👇 4. 调用 Service 更新
         updated_shop = service.update_shop(shop_id=target_shop.id, data=data, files=files)
 
-        # 👇 5. 构造返回数据 (✅ 修改点：不再拼接 file_base_url)
-        shop_data = {
-            "id": updated_shop.id,
-            "name": updated_shop.name,
-            "address": updated_shop.address,
-            "lat": float(updated_shop.lat),
-            "lng": float(updated_shop.lng),
-            "phone": updated_shop.phone,
-            "badge_text": updated_shop.badge_text,
-            "new_girls_last_15_days": updated_shop.new_girls_last_15_days,
-            "pictures": [
-                {"id": pic.id, "url": pic.url}
-                for pic in (updated_shop.pictures or [])
-            ]
-        }
-        return jsonify(shop_data)
+        # ✅ 修改：直接调用 to_dict()
+        return jsonify(updated_shop.to_dict())
 
     except Exception as e:
         current_app.logger.error(f"Update shop by name failed: {str(e)}", exc_info=True)
@@ -167,23 +113,5 @@ def update_shop_by_name(shop_name):
 def get_all_shops():
     shops = service.get_all_shops()
     
-    # ✅ 修改点：不再拼接 file_base_url
-    data = [
-        {
-            "id": shop.id,
-            "name": shop.name,
-            "address": shop.address,
-            "lat": shop.lat,
-            "lng": shop.lng,
-            "phone": shop.phone,
-            "badge_text": shop.badge_text,
-            "new_girls_last_15_days": shop.new_girls_last_15_days,
-            "pictures": [
-                {"id": pic.id, "url": pic.url}
-                for pic in (shop.pictures or [])
-            ]
-        }
-        for shop in shops
-    ]
-    
-    return jsonify(data)
+    # ✅ 修改：直接调用 to_dict()，自动包含所有新字段
+    return jsonify([shop.to_dict() for shop in shops])
