@@ -35,25 +35,63 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
     circle.style.transition = 'transform 0.2s ease';
   }
 
-  const getPictureUrl = (pic: any): string | null => {
+  // --- 🔧 修改开始：提取并修复图片 URL ---
+  const getRawPictureUrl = (pic: any): string | null => {
     if (!pic) return null;
     if (typeof pic === 'string') return pic;
     if (typeof pic === 'object' && typeof pic.url === 'string') return pic.url;
     return null;
   };
 
-  const imageUrl = getPictureUrl(shop.pictures?.[0]);
+  const rawUrl = getRawPictureUrl(shop.pictures?.[0]);
+  
+  let finalImageUrl: string | null = null;
 
-  if (imageUrl) {
+  if (rawUrl) {
+    if (rawUrl.startsWith('http')) {
+      // 如果是完整链接，直接使用
+      finalImageUrl = rawUrl;
+    } else {
+      // 如果是相对路径，拼接后端地址 + /uploads/
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+      const cleanPath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+      finalImageUrl = `${baseUrl}/uploads/${cleanPath}`;
+    }
+  }
+  // --- 🔧 修改结束 ---
+
+  if (finalImageUrl) {
     const img = document.createElement('img');
-    img.src = imageUrl;
+    img.src = finalImageUrl; // 👈 使用修复后的 URL
     img.alt = shop.name || 'SPA';
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.objectFit = 'cover';
     img.style.objectPosition = 'top';
+    
     img.onerror = () => {
-      img.remove();
+      // 图片加载失败时，移除 img 并显示文字
+      if (img.parentNode) {
+        img.remove();
+      }
+      // 防止重复添加文字
+      if (!circle.querySelector('span')) {
+        const span = document.createElement('span');
+        span.textContent = 'SPA';
+        span.style.color = 'white';
+        span.style.fontSize = '10px';
+        span.style.fontWeight = 'bold';
+        span.style.display = 'flex';
+        span.style.alignItems = 'center';
+        span.style.justifyContent = 'center';
+        span.style.height = '100%';
+        circle.appendChild(span);
+      }
+    };
+    circle.appendChild(img);
+  } else {
+    // 没有图片数据，直接显示文字
+    if (!circle.querySelector('span')) {
       const span = document.createElement('span');
       span.textContent = 'SPA';
       span.style.color = 'white';
@@ -64,19 +102,7 @@ const createShopIcon = (shop: Shop, isSelected: boolean): L.DivIcon => {
       span.style.justifyContent = 'center';
       span.style.height = '100%';
       circle.appendChild(span);
-    };
-    circle.appendChild(img);
-  } else {
-    const span = document.createElement('span');
-    span.textContent = 'SPA';
-    span.style.color = 'white';
-    span.style.fontSize = '10px';
-    span.style.fontWeight = 'bold';
-    span.style.display = 'flex';
-    span.style.alignItems = 'center';
-    span.style.justifyContent = 'center';
-    span.style.height = '100%';
-    circle.appendChild(span);
+    }
   }
 
   iconDiv.appendChild(circle);

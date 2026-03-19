@@ -534,28 +534,87 @@ const ShopCard: React.FC<ShopCardProps> = ({
         onWheel={(e) => e.preventDefault()} 
       >
         <div className="flex gap-1 h-full p-1 w-full overflow-hidden pointer-events-none"> 
-          {shop.pictures && shop.pictures.length > 0 ? (
-            shop.pictures.map((pic, idx) => (
-              <div key={idx} className="w-24 h-full flex-shrink-0 relative rounded-lg overflow-hidden">
-                <img
-                  src={`${pic.url}${pic.url.includes('?') ? '&' : '?'}_t=${Date.now()}`}
-                  alt=""
-                  className="w-full h-full object-cover pointer-events-auto"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.backgroundColor = '#f3f4f6';
-                    target.style.opacity = '0.5';
-                  }}
-                />
-              </div>
-            ))
+                    {shop.pictures && shop.pictures.length > 0 ? (
+            shop.pictures.map((pic, idx) => {
+              const rawUrl = pic.url;
+              // 🔍 调试：打印原始 URL
+              console.log(`[ShopCard] Raw URL ${idx}:`, rawUrl);
+
+              let optimizedUrl = rawUrl;
+
+              // 1️⃣ 如果是 http 开头，直接使用（可能是 CDN 链接）
+              if (rawUrl && rawUrl.startsWith('http')) {
+                optimizedUrl = rawUrl;
+              } 
+              // 2️⃣ 如果是 Cloudinary 相对路径 (/upload/...)
+              else if (rawUrl && rawUrl.includes('/upload/')) {
+                const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+                if (cloudName) {
+                  const baseUrl = `https://res.cloudinary.com/${cloudName}`;
+                  const pathAfterUpload = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+                  const transformParams = 'f_auto,q_auto,w_200,c_fill';
+                  optimizedUrl = `${baseUrl}/image/upload/${transformParams}/${pathAfterUpload}`;
+                } else {
+                  console.warn('[ShopCard] Missing VITE_CLOUDINARY_CLOUD_NAME, falling back to API');
+                  // 如果没配 Cloudinary，掉落到下面的 API 拼接逻辑
+                  optimizedUrl = rawUrl; 
+                }
+              }
+              
+              // 3️⃣ 【核心修复】其他所有相对路径，强制拼接 API_BASE_URL
+              if (!optimizedUrl.startsWith('http')) {
+                const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+                
+                // ✅ 绝对防御：确保 base 有结尾斜杠，path 有开头斜杠（只保留一个）
+                const base = apiBase.endsWith('/') ? apiBase : `${apiBase}/`;
+                const path = optimizedUrl.startsWith('/') ? optimizedUrl.slice(1) : optimizedUrl;
+                
+                optimizedUrl = `${base}uploads/${path}`;
+              }
+
+              // 4️⃣ 添加时间戳防止缓存
+              const separator = optimizedUrl.includes('?') ? '&' : '?';
+              const finalUrl = `${optimizedUrl}${separator}_t=${Date.now()}`;
+
+              console.log(`[ShopCard] ✅ Final URL ${idx}:`, finalUrl);
+
+              return (
+                <div key={idx} className="w-24 h-full flex-shrink-0 relative rounded-lg overflow-hidden bg-gray-100">
+                  <img
+                    src={finalUrl}
+                    alt={shop.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover pointer-events-auto transition-opacity duration-300 opacity-0"
+                    onLoad={(e) => {
+                      console.log(`[ShopCard] ✅ Loaded:`, finalUrl);
+                      (e.target as HTMLImageElement).classList.remove('opacity-0');
+                    }}
+                    onError={(e) => {
+                      console.error(`[ShopCard] ❌ Failed:`, finalUrl);
+                      const target = e.target as HTMLImageElement;
+                      // 显示简单的文字占位，方便调试
+                      target.style.background = '#e5e7eb';
+                      target.style.display = 'flex';
+                      target.style.alignItems = 'center';
+                      target.style.justifyContent = 'center';
+                      target.style.fontSize = '10px';
+                      target.style.color = '#6b7280';
+                      target.src = ''; 
+                      target.innerText = 'IMG ERR'; 
+                      target.classList.remove('opacity-0');
+                    }}
+                  />
+                </div>
+              );
+            })
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-medium bg-gray-50 pointer-events-none">
               No Image
             </div>
-          )}
-        </div> 
+          )} 
       </div>
+    </div>
 
       {/* 底部信息区 */}
       <div className="p-3 space-y-2">

@@ -67,19 +67,59 @@ const ShopDetailPage: React.FC = () => {
       {/* 2. Scrollable Content */}
       <div className="flex-1 overflow-y-auto pb-10">
         
-        {/* Image */}
-        <div className="relative w-full h-48 sm:h-56 bg-gray-200">
+                 {/* 
+          【修改版】
+          策略：
+          1. max-w-[500px]: 强制最大宽度为 500px (电脑端生效)
+          2. mx-auto: 电脑端居中显示
+          3. w-full: 手机端依然占满屏幕
+        */}
+        <div className="relative w-full max-w-[300px] mx-auto bg-gray-100 overflow-hidden">
           {shop.pictures && shop.pictures.length > 0 ? (
-            <img src={shop.pictures[0].url} alt={shop.name} className="w-full h-full object-cover" />
+            (() => {
+              const rawUrl = shop.pictures[0].url;
+              const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+              
+              let finalUrl = rawUrl;
+              if (rawUrl && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+                const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                const pathPrefix = rawUrl.startsWith('/') ? '' : '/uploads/'; 
+                finalUrl = `${cleanBase}${pathPrefix}${rawUrl}`;
+              }
+
+              return (
+                <>
+                  <img 
+                    src={finalUrl} 
+                    alt={shop.name} 
+                    // 高度保持适中，宽度由父容器 (500px) 控制
+                    className="w-full h-64 md:h-80 object-cover min-h-0 block"
+                    onError={(e) => {
+                      console.error("图片加载失败:", finalUrl);
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      if(target.parentElement) {
+                        target.parentElement.innerHTML = `
+                          <div class="w-full h-64 md:h-80 flex items-center justify-center text-gray-400 bg-gray-100">
+                            图片加载失败
+                          </div>
+                        `;
+                      }
+                    }}
+                  />
+                  
+                  {shop.badge_text && (
+                    <span className="absolute top-4 left-4 px-3 py-1 bg-rose-500 text-white text-xs font-bold rounded-full shadow-lg uppercase tracking-wide z-10">
+                      {shop.badge_text}
+                    </span>
+                  )}
+                </>
+              );
+            })()
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-400 bg-gray-100">
+            <div className="w-full h-64 md:h-80 flex items-center justify-center text-gray-400 bg-gray-100">
               <MapPin size={40} className="opacity-20" />
             </div>
-          )}
-          {shop.badge_text && (
-            <span className="absolute top-3 left-3 px-3 py-1 bg-rose-500 text-white text-xs font-bold rounded-full shadow-lg uppercase tracking-wide">
-              {shop.badge_text}
-            </span>
           )}
         </div>
 
