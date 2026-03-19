@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Shop } from '../components/types';
 import { ArrowLeft, MapPin, Phone, Star, ExternalLink, Share2, Info, DollarSign } from 'lucide-react';
+// ✅ 已移除 sonner 导入，避免报错
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -11,6 +12,42 @@ const ShopDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // ✅ 修复后的分享函数 (使用 alert 替代 toast)
+  const handleShare = async () => {
+    const currentUrl = window.location.href;
+    const shopName = shop?.name || 'This Shop';
+
+    // 1. 优先尝试原生分享 (手机端)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shopName,
+          text: `Check out ${shopName} on NZ Massage Map!`,
+          url: currentUrl,
+        });
+        return; 
+      } catch (err) {
+        console.log('Share canceled or failed', err);
+      }
+    }
+
+    // 2. 备用方案：复制到剪贴板
+    try {
+      await navigator.clipboard.writeText(currentUrl);
+      alert('✅ Link copied to clipboard!');
+    } catch (err) {
+      // 3. 终极兼容方案
+      const textarea = document.createElement('textarea');
+      textarea.value = currentUrl;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      alert('✅ Link copied!');
+    }
+  };
 
   useEffect(() => {
     const fetchShop = async () => {
@@ -59,7 +96,13 @@ const ShopDetailPage: React.FC = () => {
           <ArrowLeft size={22} className="text-gray-700" />
         </button>
         <span className="font-bold text-gray-800 truncate max-w-[60%]">{shop.name}</span>
-        <button className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition">
+        
+        {/* ✅ 绑定分享按钮 */}
+        <button 
+          onClick={handleShare} 
+          className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition active:scale-95"
+          aria-label="Share this shop"
+        >
           <Share2 size={20} className="text-gray-500" />
         </button>
       </div>
@@ -67,13 +110,7 @@ const ShopDetailPage: React.FC = () => {
       {/* 2. Scrollable Content */}
       <div className="flex-1 overflow-y-auto pb-10">
         
-                 {/* 
-          【修改版】
-          策略：
-          1. max-w-[500px]: 强制最大宽度为 500px (电脑端生效)
-          2. mx-auto: 电脑端居中显示
-          3. w-full: 手机端依然占满屏幕
-        */}
+        {/* Image Section */}
         <div className="relative w-full max-w-[300px] mx-auto bg-gray-100 overflow-hidden">
           {shop.pictures && shop.pictures.length > 0 ? (
             (() => {
@@ -92,7 +129,6 @@ const ShopDetailPage: React.FC = () => {
                   <img 
                     src={finalUrl} 
                     alt={shop.name} 
-                    // 高度保持适中，宽度由父容器 (500px) 控制
                     className="w-full h-64 md:h-80 object-cover min-h-0 block"
                     onError={(e) => {
                       console.error("图片加载失败:", finalUrl);
@@ -127,7 +163,6 @@ const ShopDetailPage: React.FC = () => {
         <div className="bg-white -mt-6 relative rounded-t-3xl px-6 pt-8 pb-6 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{shop.name}</h1>
           
-          {/* Rating Placeholder */}
           <div className="flex items-center gap-1 mb-6">
             {[1, 2, 3, 4, 5].map((i) => (
               <Star key={i} size={14} fill="#FBBF24" className="text-yellow-400" />
@@ -135,7 +170,6 @@ const ShopDetailPage: React.FC = () => {
             <span className="text-xs text-gray-400 ml-1 font-medium">Verified Listing</span>
           </div>
 
-          {/* Grid: Address & Phone */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gray-50 p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
               <div className="p-2 bg-white rounded-full shadow-sm text-rose-500">
@@ -156,7 +190,6 @@ const ShopDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* 🔥 NEW: About Me Section */}
           {shop.about_me && (
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
@@ -169,7 +202,6 @@ const ShopDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* 🔥 NEW: Additional Price Section */}
           {shop.additional_price && (
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
@@ -182,7 +214,6 @@ const ShopDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Description (General) */}
           {shop.description && (
             <div className="mb-8">
               <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase tracking-wide">Description</h3>
@@ -192,7 +223,6 @@ const ShopDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Action Button */}
           <button 
             onClick={() => navigate(`/?lat=${shop.lat}&lng=${shop.lng}&focus=${shop.id}`)}
             className="w-full py-4 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition shadow-lg flex items-center justify-center gap-2 active:scale-95 transform duration-100 text-sm uppercase tracking-wide"
