@@ -1,7 +1,7 @@
 // src/constants.tsx
 
 // 1. 奥克兰中心坐标
-export const NZ_CENTER = { lat: -36.8485, lng: 174.7633 }; 
+export const NZ_CENTER = { lat: -40.8485, lng: 174.7633 }; 
 
 // 2. 标签配置表 (已简化类型定义，避免编译错误)
 export const TAG_CONFIG = {

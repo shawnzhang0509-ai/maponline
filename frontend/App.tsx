@@ -33,6 +33,8 @@ const HomePage: React.FC = () => {
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [zoom, setZoom] = useState<number>(5.5); 
+  const [center, setCenter] = useState<UserLocation>(NZ_CENTER); // 使用你导入的 NZ_CENTER 作为默认值
   
   const [showAdmin, setShowAdmin] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
@@ -88,20 +90,47 @@ const HomePage: React.FC = () => {
 
   const filteredShops = useMemo(() => {
     let result = [...shops];
+    // 1. 【核心】先执行距离过滤
     if (useNearbyFilter && userLocation) {
-      result = result.filter(shop => calculateDistance(userLocation, { lat: shop.lat, lng: shop.lng }) <= radiusKm);
+      result = result.filter(shop => {
+        const dist = calculateDistance(userLocation, { lat: shop.lat, lng: shop.lng });
+        return dist <= radiusKm;
+      });
     }
+
+    // 2. 执行标签过滤
     if (selectedTag) {
       const targetTag = selectedTag.toLowerCase();
       result = result.filter(shop => getShopTags(shop).some(tag => tag.toLowerCase() === targetTag));
     }
+
+    // 3. 执行距离排序 (如果有位置信息)
     if (userLocation) {
-      result.sort((a, b) => calculateDistance(userLocation, { lat: a.lat, lng: a.lng }) - calculateDistance(userLocation, { lat: b.lat, lng: b.lng }));
+      result.sort((a, b) => 
+        calculateDistance(userLocation, { lat: a.lat, lng: a.lng }) - 
+        calculateDistance(userLocation, { lat: b.lat, lng: b.lng })
+      );
     }
+
+    // 4. 【修复】处理选中店铺的逻辑
+    // 只有当 selectedShop 真的在过滤后的列表里，或者是为了高亮显示时才操作
+    // 如果 selectedShop 超出了半径范围，且开启了附近过滤，我们暂时不强制把它加回来，以免误导用户
     if (selectedShop) {
-      const others = result.filter(s => s.id !== selectedShop.id);
-      result = [selectedShop, ...others];
+      const isSelectedInList = result.some(s => s.id === selectedShop.id);
+      
+      // 只有在以下情况才把 selectedShop 置顶：
+      // A. 它本来就在列表里 (在半径内) -> 只是调整顺序置顶
+      // B. 没有开启附近过滤 (useNearbyFilter 为 false) -> 显示所有店，选中店置顶
+      if (isSelectedInList || !useNearbyFilter) {
+        const others = result.filter(s => s.id !== selectedShop.id);
+        result = [selectedShop, ...others];
+      } else {
+        // 🔴 关键修复：如果开启了附近过滤，且选中的店不在范围内，就不强制显示它
+        // 这样用户就能明确知道“这个店不在范围内”，而不是看到一个突兀的店出现在列表里
+        console.log(`ℹ️ 选中的店铺 ${selectedShop.name} 超出 ${radiusKm}km 范围，已按规则隐藏。`);
+      }
     }
+
     return result;
   }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTag, selectedShop]);
 
@@ -331,8 +360,16 @@ const HomePage: React.FC = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          alert("Location found! Sorting by distance.");
+          const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserLocation(newLoc);
+          
+          // ✅ 修复：获取到位置后，自动开启过滤！
+          setUseNearbyFilter(true); 
+          
+          // 可选：重置半径为默认值
+          setRadiusKm(10); 
+          
+          alert(`Filtering cute faces around ${radiusKm}km… just for you 😎`);
         },
         () => alert("Location access denied")
       );
@@ -393,7 +430,7 @@ const HomePage: React.FC = () => {
       )}
 
       <div className="flex-1 relative overflow-hidden">
-        <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
+        <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
@@ -406,7 +443,27 @@ const HomePage: React.FC = () => {
             <span className="text-xs font-bold text-gray-400 uppercase">Range</span>
             <input type="range" min="1" max="20" value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value))} className="flex-1 accent-rose-500" />
             <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}km</span>
-            <button onClick={() => { setUserLocation(null); setUseNearbyFilter(false); setSelectedShop(null); }} className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition">✕ Reset</button>
+            <button 
+              onClick={() => {
+                // 1. 关闭筛选模式
+                setUseNearbyFilter(false);
+                
+                // 2. 清空用户位置（红圈消失）
+                setUserLocation(null);
+                
+                // 3. 取消选中的店铺
+                setSelectedShop(null);
+                
+                // 4. 【关键】强制重置中心点 (你的默认坐标)
+                setCenter({ lat: -50.8485, lng: 174.7633 });
+                
+                // 5. 【关键】强制重置缩放级别为 5.5
+                setZoom(5.5);
+              }} 
+              className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"
+            >
+              ✕ Reset
+            </button>
           </div>
         )}
 

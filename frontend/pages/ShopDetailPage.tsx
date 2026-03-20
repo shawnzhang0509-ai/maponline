@@ -110,6 +110,7 @@ const ShopDetailPage: React.FC = () => {
           baseUrl={API_BASE_URL}
           altText={shop.name}
           badgeText={shop.badge_text}
+          autoPlay={true}  // 👈 必须有这一行
         />
 
         {/* Info Card */}
