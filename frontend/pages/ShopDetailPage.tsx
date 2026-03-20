@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Shop } from '../components/types';
 import { ArrowLeft, MapPin, Phone, Star, ExternalLink, Share2, Info, DollarSign } from 'lucide-react';
-// ✅ 已移除 sonner 导入，避免报错
+// ✅ 引入新的图片组件
+import ImageGallery from '../components/ImageGallery'; 
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -13,12 +14,10 @@ const ShopDetailPage: React.FC = () => {
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ 修复后的分享函数 (使用 alert 替代 toast)
   const handleShare = async () => {
     const currentUrl = window.location.href;
     const shopName = shop?.name || 'This Shop';
 
-    // 1. 优先尝试原生分享 (手机端)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -32,19 +31,16 @@ const ShopDetailPage: React.FC = () => {
       }
     }
 
-    // 2. 备用方案：复制到剪贴板
     try {
       await navigator.clipboard.writeText(currentUrl);
       alert('✅ Link copied to clipboard!');
     } catch (err) {
-      // 3. 终极兼容方案
       const textarea = document.createElement('textarea');
       textarea.value = currentUrl;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      
       alert('✅ Link copied!');
     }
   };
@@ -90,14 +86,12 @@ const ShopDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* 1. Header */}
+      {/* Header */}
       <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
         <button onClick={() => navigate('/')} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition">
           <ArrowLeft size={22} className="text-gray-700" />
         </button>
         <span className="font-bold text-gray-800 truncate max-w-[60%]">{shop.name}</span>
-        
-        {/* ✅ 绑定分享按钮 */}
         <button 
           onClick={handleShare} 
           className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition active:scale-95"
@@ -107,57 +101,16 @@ const ShopDetailPage: React.FC = () => {
         </button>
       </div>
 
-      {/* 2. Scrollable Content */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto pb-10">
         
-        {/* Image Section */}
-        <div className="relative w-full max-w-[300px] mx-auto bg-gray-100 overflow-hidden">
-          {shop.pictures && shop.pictures.length > 0 ? (
-            (() => {
-              const rawUrl = shop.pictures[0].url;
-              const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-              
-              let finalUrl = rawUrl;
-              if (rawUrl && !rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
-                const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-                const pathPrefix = rawUrl.startsWith('/') ? '' : '/uploads/'; 
-                finalUrl = `${cleanBase}${pathPrefix}${rawUrl}`;
-              }
-
-              return (
-                <>
-                  <img 
-                    src={finalUrl} 
-                    alt={shop.name} 
-                    className="w-full h-64 md:h-80 object-cover min-h-0 block"
-                    onError={(e) => {
-                      console.error("图片加载失败:", finalUrl);
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      if(target.parentElement) {
-                        target.parentElement.innerHTML = `
-                          <div class="w-full h-64 md:h-80 flex items-center justify-center text-gray-400 bg-gray-100">
-                            图片加载失败
-                          </div>
-                        `;
-                      }
-                    }}
-                  />
-                  
-                  {shop.badge_text && (
-                    <span className="absolute top-4 left-4 px-3 py-1 bg-rose-500 text-white text-xs font-bold rounded-full shadow-lg uppercase tracking-wide z-10">
-                      {shop.badge_text}
-                    </span>
-                  )}
-                </>
-              );
-            })()
-          ) : (
-            <div className="w-full h-64 md:h-80 flex items-center justify-center text-gray-400 bg-gray-100">
-              <MapPin size={40} className="opacity-20" />
-            </div>
-          )}
-        </div>
+        {/* ✅ 使用新的 ImageGallery 组件 */}
+        <ImageGallery 
+          pictures={shop.pictures || []} 
+          baseUrl={API_BASE_URL}
+          altText={shop.name}
+          badgeText={shop.badge_text}
+        />
 
         {/* Info Card */}
         <div className="bg-white -mt-6 relative rounded-t-3xl px-6 pt-8 pb-6 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
