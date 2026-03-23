@@ -390,23 +390,59 @@ const HomePage: React.FC = () => {
   const handleLogout = () => { setIsLoggedIn(false); setUsername(null); localStorage.removeItem("admin_logged_in"); localStorage.removeItem('admin_username'); };
   
   const requestLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserLocation(newLoc);
-          
-          // ✅ 修复：获取到位置后，自动开启过滤！
-          setUseNearbyFilter(true); 
-          
-          // 可选：重置半径为默认值
-          setRadiusKm(10); 
-          
-          alert(`Filtering cute faces around ${radiusKm}km… just for you 😎`);
-        },
-        () => alert("Location access denied")
-      );
-    } else { alert("Geolocation not supported"); }
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser 😞");
+      return;
+    }
+
+    // 先给个反馈，让用户知道正在定位
+    // (可选) 如果你不想用 alert，可以做一个小的 Toast 提示
+    // console.log("📍 Locating..."); 
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newLoc = { 
+          lat: pos.coords.latitude, 
+          lng: pos.coords.longitude 
+        };
+
+        // 1. 更新用户位置 (红点)
+        setUserLocation(newLoc);
+        
+        // 2. 开启附近过滤
+        setUseNearbyFilter(true); 
+        
+        // 3. 设置合理的默认半径 (比如 5km 更适合城市浏览)
+        const DEFAULT_RADIUS = 5;
+        setRadiusKm(DEFAULT_RADIUS); 
+
+        // 🚀 关键修复：强制移动地图镜头！
+        // 将地图中心移到用户位置
+        setCenter(newLoc);
+        
+        // 将缩放级别调整为“街道/社区”级别 (13-14 比较合适)
+        // 5.5 是国家级别，13 是城市级别，15 是街道级别
+        setZoom(13.5); 
+
+        // 4. 正确的提示语 (使用我们刚定义的常量)
+        setTimeout(() => {
+          alert(`📍 Filtering cute faces around ${DEFAULT_RADIUS}km… just for you 😎.`);
+        }, 100);
+      },
+      (err) => {
+        console.error(err);
+        let msg = "Location access denied.";
+        if (err.code === 1) msg = "You denied location access. Please enable it in browser settings to use 'Nearby' filter.";
+        if (err.code === 2) msg = "Location unavailable. Check your GPS settings.";
+        if (err.code === 3) msg = "Location request timed out.";
+        alert(msg);
+      },
+      {
+        enableHighAccuracy: true, // 尝试获取高精度 GPS
+        timeout: 10000,           // 10秒超时
+        maximumAge: 0             // 不使用缓存
+      }
+    );
   };
 
   const handleAddShop = (newShop: Shop) => {
