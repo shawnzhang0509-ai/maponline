@@ -137,13 +137,34 @@ const HomePage: React.FC = () => {
       result = result.filter(shop => getShopTags(shop).some(tag => tag.toLowerCase() === targetTag));
     }
 
-    // 3. 执行距离排序 (如果有位置信息)
-    if (userLocation) {
-      result.sort((a, b) => 
-        calculateDistance(userLocation, { lat: a.lat, lng: a.lng }) - 
-        calculateDistance(userLocation, { lat: b.lat, lng: b.lng })
-      );
-    }
+    // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
+    // 定义优先级辅助函数
+    const getPriority = (shop: Shop) => {
+      if (!shop.badge_text) return 0;
+      const tags = shop.badge_text.toLowerCase().split(',').map(t => t.trim());
+      if (tags.includes('diamond')) return 3; // 最高优先级
+      if (tags.includes('vip')) return 2;      // 次高优先级
+      return 0;                                // 普通店铺
+    };
+
+    result.sort((a, b) => {
+      const priorityA = getPriority(a);
+      const priorityB = getPriority(b);
+
+      // A. 先比优先级 (Diamond/VIP 排前面)
+      if (priorityA !== priorityB) {
+        return priorityB - priorityA; // 降序：3 -> 2 -> 0
+      }
+
+      // B. 优先级相同，再比距离 (近的排前面)
+      if (userLocation) {
+        const distA = calculateDistance(userLocation, { lat: a.lat, lng: a.lng });
+        const distB = calculateDistance(userLocation, { lat: b.lat, lng: b.lng });
+        return distA - distB; // 升序：近 -> 远
+      }
+
+      return 0;
+    });
 
     // 4. 【修复】处理选中店铺的逻辑
     // 只有当 selectedShop 真的在过滤后的列表里，或者是为了高亮显示时才操作
