@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import AgeVerificationModal from './components/AgeVerificationModal';
+import TermsPage from './pages/TermsPage'; 
 import Header from './components/Header';
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
@@ -36,6 +38,17 @@ const HomePage: React.FC = () => {
   const [zoom, setZoom] = useState<number>(5.5); 
   const [center, setCenter] = useState<UserLocation>(NZ_CENTER); // 使用你导入的 NZ_CENTER 作为默认值
   
+
+  // ✅ 新增：年龄验证状态
+  const [isAgeVerified, setIsAgeVerified] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('age_verified') === 'true';
+    }
+    return false;
+  });
+  const [showAgeModal, setShowAgeModal] = useState(false);
+
+
   const [showAdmin, setShowAdmin] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
@@ -53,7 +66,7 @@ const HomePage: React.FC = () => {
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
 
-  // Handle URL params (returning from detail page)
+  // 1. 原有的 URL 处理逻辑 (保持不变)
   useEffect(() => {
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
@@ -72,6 +85,26 @@ const HomePage: React.FC = () => {
       }
     }
   }, [searchParams, shops]);
+
+  // 2. ✅ 新增：检查年龄验证 (独立的 useEffect)
+  useEffect(() => {
+    if (!isAgeVerified) {
+      const timer = setTimeout(() => setShowAgeModal(true), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isAgeVerified]);
+
+  // 3. ✅ 新增：处理确认函数 (独立函数)
+  const handleAgeConfirm = () => {
+    localStorage.setItem('age_verified', 'true');
+    setIsAgeVerified(true);
+    setShowAgeModal(false);
+  };
+
+  // 4. ✅ 新增：处理拒绝函数 (独立函数)
+  const handleAgeReject = () => {
+    window.location.href = 'https://www.google.com';
+  };
 
   const getShopTags = (shop: any): string[] => {
     const text = shop.badge_text;
@@ -577,6 +610,13 @@ const HomePage: React.FC = () => {
       {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
       {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
       {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
+      
+      {/* ✅ 新增：年龄验证弹窗 */}
+      <AgeVerificationModal 
+        isOpen={showAgeModal} 
+        onConfirm={handleAgeConfirm} 
+        onReject={handleAgeReject} 
+      />
     </div>
   );
 };
@@ -587,6 +627,8 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/shop/:slug" element={<ShopDetailPage />} />
+        {/* ✅ 新增条款页路由 */}
+        <Route path="/terms" element={<TermsPage />} /> 
       </Routes>
     </BrowserRouter>
   );
