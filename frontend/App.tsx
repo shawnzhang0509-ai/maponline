@@ -13,6 +13,7 @@ import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
+import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -685,7 +686,9 @@ const App: React.FC = () => {
         <Route path="/" element={<HomePage />} />
         <Route path="/shop/:slug" element={<ShopDetailPage />} />
         {/* ✅ 新增条款页路由 */}
-        <Route path="/terms" element={<TermsPage />} /> 
+        <Route path="/terms" element={<TermsPage />} />
+        {/* 👇 新增：统计页面路由 (只有登录管理员才知道这个链接，或者你可以加权限保护) */}
+        <Route path="/admin/stats" element={<ShopStats />} />  
       </Routes>
     </BrowserRouter>
   );

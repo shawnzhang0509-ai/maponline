@@ -34,6 +34,9 @@ const TAG_CONFIG: Record<string, { icon: string; bg: string; text?: string }> = 
   'default': { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' }
 };
 
+  // ... 前面的 state 定义 ...
+
+
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
   isSelected,
@@ -66,7 +69,50 @@ const ShopCard: React.FC<ShopCardProps> = ({
     newPictures: [],
     removePictureIds: [],
   });
+    // ✅【修正后】处理点击统计 + 跳转
+  const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
+    e.stopPropagation(); 
 
+    const phone = shop.phone || '';
+    if (!phone) {
+      alert('No phone number available');
+      return;
+    }
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL;
+      if (!apiUrl) throw new Error('API URL not configured');
+
+      await fetch(`${apiUrl}/shop/track/action`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json' // ✅ 1. 保持这个 Header
+        },
+        // mode: 'no-cors', // ❌ 2. 【关键】删除这一行！不要使用 no-cors
+        body: JSON.stringify({
+          shop_id: shop.id,
+          type: type,
+          phone: phone,
+          address: shop.address || '',
+          timestamp: new Date().toISOString()
+        }),
+      });
+      
+      console.log(`✅ Stats sent for ${type}`);
+    } catch (error) {
+      // 即使统计失败，也不影响用户跳转，只打印警告
+      console.warn('⚠️ Stats failed (non-critical):', error);
+    }
+
+    // 执行跳转逻辑 (无论统计成功与否都执行)
+    if (type === 'sms') {
+      const bodyText = encodeURIComponent('Hi, is there any availability today?');
+      window.location.href = `sms:${phone}?body=${bodyText}`;
+    } else if (type === 'call') {
+      window.location.href = `tel:${phone}`;
+    }
+  };
+     // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     if (!API_BASE_URL) {
@@ -624,21 +670,22 @@ const ShopCard: React.FC<ShopCardProps> = ({
           <p className="line-clamp-2">{shop.address}</p>
         </div>
         <div className="flex items-center gap-2 pt-1">
-          <a
-            href={getSMSLink(shop.phone, shop.address)}
+          {/* ✅ 新的 SMS 按钮 */}
+          <button
+            onClick={(e) => handleActionClick('sms', e)}
             className="flex-1 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-            onClick={(e) => e.stopPropagation()}
           >
             <MessageCircle className="w-4 h-4" />
             <span className="text-sm">SMS</span>
-          </a>
-          <a
-            href={`tel:${shop.phone}`}
+          </button>
+
+          {/* ✅ 新的 Phone 按钮 */}
+          <button
+            onClick={(e) => handleActionClick('call', e)}
             className="bg-gray-100 hover:bg-gray-200 p-2 rounded-xl text-gray-600 transition-colors"
-            onClick={(e) => e.stopPropagation()}
           >
             <Phone className="w-5 h-5" />
-          </a>
+          </button>
         </div>
       </div>
     </div>
