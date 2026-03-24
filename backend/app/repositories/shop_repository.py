@@ -13,11 +13,10 @@ from app.services.upload_service import save_uploaded_file
 
 class ShopRepository:
     def __init__(self):
-        # 显式持有 db 实例（虽然 Flask-SQLAlchemy 是全局的，但这样更清晰）
         self.db = db
 
     def get_all_shops(self, content=None):
-        """根据关键词搜索店铺（支持名称或地址）"""
+        """根据关键词搜索店铺"""
         query = self.db.session.query(Shop)
         query = query.options(joinedload(Shop.pictures))
 
@@ -28,7 +27,6 @@ class ShopRepository:
                     Shop.address.ilike(f"%{content}%")
                 )
             )
-
         return query.all()
 
     def get_by_id(self, shop_id):
@@ -45,7 +43,7 @@ class ShopRepository:
         if isinstance(new_girls, str):
             new_girls = new_girls.lower() == "true"
 
-        # 创建店铺
+        # 创建店铺 (包含新增的 about_me 和 additional_price)
         shop = Shop(
             name=data.get('name'),
             address=data.get('address'),
@@ -54,15 +52,14 @@ class ShopRepository:
             lng=data.get('lng'),
             badge_text=data.get('badge_text'),
             new_girls_last_15_days=new_girls,
-            # 🔥 新增这两行，从 data 中获取值，如果没有则默认为空字符串
             about_me=data.get('about_me', ''),
             additional_price=data.get('additional_price', '')
         )
 
         self.db.session.add(shop)
-        self.db.session.flush()  # 获取 shop.id
+        self.db.session.flush()
 
-        # 保存图片
+        # 保存图片 (现在 save_uploaded_file 返回的是 https:// 链接)
         for f in files:
             file_name, _ = save_uploaded_file(f)
             picture = Picture(url=file_name)
@@ -76,7 +73,7 @@ class ShopRepository:
         return shop
 
     def update_shop(self, shop_id, data=None, files=None):
-        """更新店铺信息及图片（支持删除和新增）"""
+        """更新店铺信息及图片"""
         data = data or {}
         files = files or []
 
@@ -84,30 +81,28 @@ class ShopRepository:
         if not shop:
             raise ValueError("Shop not found")
 
-        # ... (前面的基础字段更新代码保持不变) ...
+        # 1. 更新基础字段
         fields = ["name", "address", "phone", "lat", "lng", "badge_text"]
         for field in fields:
             if field in data:
                 setattr(shop, field, data[field])
         
-        # 🔥 在这里插入新增的代码 🔥
+        # 2. 更新新增字段
         if 'about_me' in data:
             shop.about_me = data['about_me']
         if 'additional_price' in data:
             shop.additional_price = data['additional_price']
-        # 🔥 新增代码结束 🔥
 
-
-        # 更新布尔字段
+        # 3. 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")
         if new_girls is not None:
             if isinstance(new_girls, str):
                 new_girls = new_girls.lower() == "true"
             shop.new_girls_last_15_days = new_girls
 
-        # --- 🔥 修改开始：处理图片逻辑 ---
+        # --- 🔥 纯云端图片逻辑 (已移除所有 os.remove 和本地路径操作) ---
 
-        # 1. 处理用户明确指定要删除的图片 (保留原有逻辑)
+        # A. 处理明确要删除的图片
         remove_ids_str = data.get("remove_picture_ids", "")
         if remove_ids_str:
             try:
@@ -123,56 +118,38 @@ class ShopRepository:
                     )
                     picture_ids = [sp.picture_id for sp in shop_pictures]
 
-                    files_folder = current_app.config['FILES_FOLDER']
+                    # ✅ 仅删除数据库记录，云端文件保留作为备份 (或手动在 Cloudinary 控制台清理)
                     for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
-                        file_path = os.path.join(files_folder, pic.url)
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
                         self.db.session.delete(pic)
 
                     for sp in shop_pictures:
                         self.db.session.delete(sp)
+                    
+                    current_app.logger.info(f"已移除 {len(picture_ids)} 张图片的数据库关联。")
             except (ValueError, TypeError):
                 pass
 
-        # 2. 🆕 新增逻辑：如果上传了新文件，是否要清空所有剩余旧图？
-        # 策略：如果 files 不为空，我们假设用户想要“替换”所有图片。
-        # 如果你想保留“追加”功能，可以去掉这个 if 块，或者在前端控制。
+        # B. 如果有新文件上传，清空该店铺旧的图片关联
         if files:
-            current_app.logger.info(f"检测到新图片上传，准备清空店铺 {shop_id} 的旧图片...")
+            current_app.logger.info(f"检测到新图片，准备替换店铺 {shop_id} 的所有图片...")
             
-            # 查询该店铺剩余的所有图片关联
             all_shop_pictures = (
                 self.db.session.query(ShopPicture)
                 .filter(ShopPicture.shop_id == shop.id)
                 .all()
             )
             
-            files_folder = current_app.config['FILES_FOLDER']
-            
             for sp in all_shop_pictures:
-                # 删除物理文件
                 pic = self.db.session.query(Picture).get(sp.picture_id)
                 if pic:
-                    file_path = os.path.join(files_folder, pic.url)
-                    if os.path.exists(file_path):
-                        try:
-                            os.remove(file_path)
-                            current_app.logger.info(f"删除旧文件: {file_path}")
-                        except Exception as e:
-                            current_app.logger.error(f"删除文件失败 {file_path}: {e}")
-                    
-                    # 删除 Picture 记录
-                    self.db.session.delete(pic)
-                
-                # 删除 ShopPicture 关联记录
+                    self.db.session.delete(pic) # 仅删 DB 记录
                 self.db.session.delete(sp)
             
-            current_app.logger.info("旧图片已清空，准备存入新图片。")
+            current_app.logger.info("旧图片关联已清空，准备存入新图片。")
 
-        # 3. 新增上传的图片
+        # C. 上传新图片
         for f in files:
-            file_name, _ = save_uploaded_file(f)
+            file_name, _ = save_uploaded_file(f) # 返回 https://res.cloudinary.com/...
             picture = Picture(url=file_name)
             self.db.session.add(picture)
             self.db.session.flush()
@@ -187,13 +164,12 @@ class ShopRepository:
         return shop
 
     def del_shop(self, shop_id: int):
-        """删除店铺及其所有关联图片（物理删除文件）"""
+        """删除店铺及其所有关联图片记录"""
         shop = self.get_by_id(shop_id)
         if not shop:
             return False, "Shop not found"
 
         try:
-            # 获取所有关联图片
             shop_pictures = (
                 self.db.session.query(ShopPicture)
                 .filter(ShopPicture.shop_id == shop_id)
@@ -201,19 +177,13 @@ class ShopRepository:
             )
             picture_ids = [sp.picture_id for sp in shop_pictures]
 
-            # 删除文件和图片记录
-            files_folder = current_app.config['FILES_FOLDER']
+            # ✅ 仅删除数据库记录，不再尝试物理删除文件
             for pic in self.db.session.query(Picture).filter(Picture.id.in_(picture_ids)):
-                file_path = os.path.join(files_folder, pic.url)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
                 self.db.session.delete(pic)
 
-            # 删除中间表记录
             for sp in shop_pictures:
                 self.db.session.delete(sp)
 
-            # 删除店铺
             self.db.session.delete(shop)
             self.db.session.commit()
 
@@ -221,4 +191,5 @@ class ShopRepository:
 
         except Exception as e:
             self.db.session.rollback()
+            current_app.logger.error(f"删除店铺失败: {str(e)}")
             return False, str(e)
