@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+// 1. 引入刚才写的汉堡包按钮
+import HamburgerButton from './components/HamburgerButton'; 
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import Header from './components/Header';
+import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
+import ContactModal from './components/ContactModal'; // 引入联系弹窗
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
@@ -14,6 +18,7 @@ import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
+import StatsPage from './pages/StatsPage'; // 引入刚才写的页面
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -498,8 +503,13 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
+      {/* 👇 这是关键：将按钮放在最顶部，并使用 fixed 定位和高 z-index */}
       <Header isLoggedIn={isLoggedIn} username={username} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onSearch={handleSearch} isSearching={isSearching} />
       
+      {/* 👇 在这里插入汉堡包按钮 👇 */}
+      {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
+      {/* 👆 插入结束 👆 */}
+
       {allTags.length > 0 && (
         <div className="absolute top-[70px] left-0 right-0 z-[998] px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar py-3 pointer-events-auto">
@@ -680,16 +690,24 @@ const HomePage: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
   return (
     <BrowserRouter>
+      <HamburgerButton 
+        onClick={() => setIsMenuOpen(true)} 
+        style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 9999 }} 
+      />
+      
       <Routes>
+        {/* 首页路由 */}
         <Route path="/" element={<HomePage />} />
-        <Route path="/shop/:slug" element={<ShopDetailPage />} />
-        {/* ✅ 新增条款页路由 */}
-        <Route path="/terms" element={<TermsPage />} />
-        {/* 👇 新增：统计页面路由 (只有登录管理员才知道这个链接，或者你可以加权限保护) */}
-        <Route path="/admin/stats" element={<ShopStats />} />  
+        
+        {/* ✅ 修改点：把路径改成 /tracking/stats */}
+        <Route path="/tracking/stats" element={<StatsPage />} />
       </Routes>
+
+      <SidebarMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </BrowserRouter>
   );
 };
