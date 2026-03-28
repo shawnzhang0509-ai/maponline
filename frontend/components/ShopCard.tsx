@@ -70,76 +70,71 @@ const ShopCard: React.FC<ShopCardProps> = ({
     removePictureIds: [],
   });
   const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 阻止默认行为（防止页面跳转或链接打开）
-    e.preventDefault();
-    e.stopPropagation();
+  // 1. 阻止默认行为（防止页面跳转或链接打开）
+  e.preventDefault();
+  e.stopPropagation();
 
-    const phone = shop.phone || '';
-    if (!phone) {
-      alert('No phone number available');
-      return;
+  const phone = shop.phone || '';
+  if (!phone) {
+    alert('No phone number available');
+    return;
+  }
+
+  try {
+    // 2. 发送统计请求
+  const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
+  // 1. 阻止默认行为（防止页面跳转或链接打开）
+  e.preventDefault();
+  e.stopPropagation();
+
+  const phone = shop.phone || '';
+  if (!phone) {
+    alert('No phone number available');
+    return;
+  }
+
+  // 标记是否发送了请求，用于后续判断
+  let statsSent = false;
+
+  try {
+    // 2. 发送统计请求
+  const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    if (!apiUrl) throw new Error('API URL not configured');
+
+    const response = await fetch(`${apiUrl}/shop/track/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        shop_id: `shop_${shop.id}`, // ✅ 统一 ID 格式
+        type: type,
+        phone: phone,
+        address: shop.address || '',
+        timestamp: new Date().toISOString(),
+      }),
+    });
+
+    if (response.ok) {
+      console.log('✅ Tracking event sent successfully');
+      statsSent = true;
+    } else {
+      console.error('❌ Failed to send tracking event');
     }
+  } catch (error) {
+    // 即使统计失败，也不影响用户跳转，只打印警告
+    console.warn('⚠️ Stats failed (non-critical):', error);
+  }
 
-    try {
-      // 发送统计请求
-      const response = await fetch('/tracking/action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          // 统一 ID 格式
-          shop_id: `shop_${shop.id}`,
-          type: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString()
-        }),
-      });
-
-      if (response.ok) {
-        console.log('Tracking event sent successfully');
-      } else {
-        console.error('Failed to send tracking event');
-      }
-    } catch (error) {
-      console.error('Error sending tracking event:', error);
-    }
-  };
-
-    try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL;
-      if (!apiUrl) throw new Error('API URL not configured');
-
-      await fetch(`${apiUrl}/shop/track/action`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json' // ✅ 1. 保持这个 Header
-        },
-        // mode: 'no-cors', // ❌ 2. 【关键】删除这一行！不要使用 no-cors
-        body: JSON.stringify({
-          shop_id: `shop_${shop.id}`, // ✅ 修改这一行
-          type: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString()
-        }),
-      });
-      
-      console.log(`✅ Stats sent for ${type}`);
-    } catch (error) {
-      // 即使统计失败，也不影响用户跳转，只打印警告
-      console.warn('⚠️ Stats failed (non-critical):', error);
-    }
-
-    // 执行跳转逻辑 (无论统计成功与否都执行)
-    if (type === 'sms') {
-      const bodyText = encodeURIComponent('Hi, is there any availability today?');
-      window.location.href = `sms:${phone}?body=${bodyText}`;
-    } else if (type === 'call') {
-      window.location.href = `tel:${phone}`;
-    }
-  };
+  // 3. 执行跳转逻辑（无论统计成功与否都执行）
+  // 注意：这里必须放在 try...catch 块的外部
+  if (type === 'sms') {
+    const bodyText = encodeURIComponent('Hi, is there any availability today?');
+    window.location.href = `sms:${phone}?body=${bodyText}`;
+  } else if (type === 'call') {
+    window.location.href = `tel:${phone}`;
+  }
+};
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
