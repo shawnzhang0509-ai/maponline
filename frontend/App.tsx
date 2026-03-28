@@ -704,7 +704,7 @@ const App: React.FC = () => {
         <Route path="/" element={<HomePage />} />
         
         {/* ✅ 修改点：把路径改成 /tracking/stats */}
-        <Route path="/tracking/stats" element={<StatsPage />} />
+        <Route path="/stats/:shopId" element={<ShopStats />} />
       </Routes>
 
       <SidebarMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
