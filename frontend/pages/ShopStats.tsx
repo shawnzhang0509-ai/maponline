@@ -19,7 +19,7 @@ const ShopStats: React.FC = () => {
       try {
         // ✅ 修正：确保这里拼接的路径和你后端的路由一致
         // 如果你的后端路由是 /tracking/stats，请在这里修改
-        const res = await fetch(`${API_BASE_URL}/shop/stats`);
+        const res = await fetch(`${API_BASE_URL}/stats/shop_123`);
         
         if (!res.ok) throw new Error('Failed to fetch stats');
         const data = await res.json();
