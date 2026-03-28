@@ -55,7 +55,7 @@ def create_app():
 
     app.register_blueprint(shop_bp, url_prefix='/shop')
     app.register_blueprint(user_bp)
-    app.register_blueprint(tracking_bp, url_prefix='/tracking') # <--- 新增注册
+    app.register_blueprint(tracking_bp) 
 
     # ... (后面的文件服务和路由保持不变) ...
     @app.route('/files/<path:filename>')
