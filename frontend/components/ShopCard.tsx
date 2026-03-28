@@ -83,7 +83,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
   try {
     // 2. 发送统计请求
   const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 1. 阻止默认行为
     e.preventDefault();
     e.stopPropagation();
 
@@ -93,43 +92,50 @@ const ShopCard: React.FC<ShopCardProps> = ({
       return;
     }
 
-    try {
-      // 2. 发送统计请求
-      const apiUrl = import.meta.env.VITE_API_BASE_URL;
-      if (!apiUrl) throw new Error('API URL not configured');
-
-      const response = await fetch(`${apiUrl}/shop/track/action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          shop_id: `shop_${shop.id}`,
-          type: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (response.ok) {
-        console.log('✅ Tracking event sent successfully');
-      } else {
-        console.error('❌ Failed to send tracking event');
-      }
-    } catch (error) {
-      console.warn('⚠️ Stats failed (non-critical):', error);
+    // 1. 构建统计数据
+    const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    if (!apiUrl) {
+      console.error('API URL not configured');
+      // 即使没URL，也要跳转，不能卡住用户
+      doRedirect();
+      return;
     }
 
-    // 3. 延迟跳转，确保统计请求被浏览器发出
-    setTimeout(() => {
+    const data = JSON.stringify({
+      shop_id: `shop_${shop.id}`,
+      type: type,
+      phone: phone,
+      address: shop.address || '',
+      timestamp: new Date().toISOString(),
+    });
+
+    // 2. 使用 sendBeacon 发送数据 (关键修改)
+    // 它会在后台静默发送，不会阻塞页面跳转
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(`${apiUrl}/shop/track/action`, new Blob([data], { type: 'application/json' }));
+      console.log('📊 Beacon sent (Non-blocking)');
+    } else {
+      // 兼容：如果浏览器不支持 sendBeacon，用 fetch 且不等待
+      fetch(`${apiUrl}/shop/track/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: data,
+        // 关键：设置 keepalive，告诉浏览器保持连接直到请求完成
+        keepalive: true
+      }).catch(err => console.warn('Fetch failed, but user is being redirected anyway'));
+    }
+
+    // 3. 立即跳转（不需要 setTimeout 了）
+    function doRedirect() {
       if (type === 'sms') {
         const bodyText = encodeURIComponent('Hi, is there any availability today?');
         window.location.href = `sms:${phone}?body=${bodyText}`;
-      } else if (type === 'call') {
+      } else {
         window.location.href = `tel:${phone}`;
       }
-    }, 100);
+    }
+
+    doRedirect();
   };
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
