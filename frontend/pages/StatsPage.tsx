@@ -18,7 +18,7 @@ const ShopStats = () => {
   const fetchStats = async () => {
     try {
       // 👇 调用刚才后端写的 /tracking/stats/<shop_id> 接口
-      const response = await fetch(`/api/stats?shopId=${shopId}`);
+      onst response = await fetch(`/tracking/stats?shopId=${shopId}`);
       
       if (!response.ok) {
         throw new Error('Network response was not ok');

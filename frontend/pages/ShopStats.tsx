@@ -11,13 +11,16 @@ const ShopStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Next.js 写法，注意环境变量名要改成 NEXT_PUBLIC_ 开头
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  // ✅ 修正：Vite 项目必须使用 import.meta.env
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        // ✅ 修正：确保这里拼接的路径和你后端的路由一致
+        // 如果你的后端路由是 /tracking/stats，请在这里修改
         const res = await fetch(`${API_BASE_URL}/shop/stats`);
+        
         if (!res.ok) throw new Error('Failed to fetch stats');
         const data = await res.json();
         
@@ -85,7 +88,7 @@ const ShopStats: React.FC = () => {
                         className={`h-full rounded-full ${
                           item.type === 'sms' ? 'bg-rose-500' : 'bg-blue-500'
                         }`}
-                        style={{ width: `${Math.min(item.count * 10, 100)}%` }} // 简单可视化：每个点击占 10%，最大 100%
+                        style={{ width: `${Math.min(item.count * 10, 100)}%` }}
                       />
                     </div>
                   </td>
