@@ -69,15 +69,43 @@ const ShopCard: React.FC<ShopCardProps> = ({
     newPictures: [],
     removePictureIds: [],
   });
-    // ✅【修正后】处理点击统计 + 跳转
   const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    // 阻止默认行为（防止页面跳转或链接打开）
+    e.preventDefault();
+    e.stopPropagation();
 
     const phone = shop.phone || '';
     if (!phone) {
       alert('No phone number available');
       return;
     }
+
+    try {
+      // 发送统计请求
+      const response = await fetch('/tracking/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          // 统一 ID 格式
+          shop_id: `shop_${shop.id}`,
+          type: type,
+          phone: phone,
+          address: shop.address || '',
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      if (response.ok) {
+        console.log('Tracking event sent successfully');
+      } else {
+        console.error('Failed to send tracking event');
+      }
+    } catch (error) {
+      console.error('Error sending tracking event:', error);
+    }
+  };
 
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL;
@@ -90,7 +118,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         },
         // mode: 'no-cors', // ❌ 2. 【关键】删除这一行！不要使用 no-cors
         body: JSON.stringify({
-          shop_id: shop.id,
+          shop_id: `shop_${shop.id}`, // ✅ 修改这一行
           type: type,
           phone: phone,
           address: shop.address || '',
