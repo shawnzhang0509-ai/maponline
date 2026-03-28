@@ -11,7 +11,8 @@ const ShopStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  // Next.js 写法，注意环境变量名要改成 NEXT_PUBLIC_ 开头
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
   useEffect(() => {
     const fetchStats = async () => {
