@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting...</title>
+  <script type="module">
+    // 1. 解析 URL 参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    const phone = urlParams.get('phone');
+    const shopId = urlParams.get('shop_id');
+    const address = urlParams.get('address');
+
+    // 2. 发送统计请求
+    const sendStats = () => {
+      // 修改：直接写死 API 地址，或者用相对路径
+      // 如果你的 API 和前端在同域名下，可以用相对路径 '/api/shop/track/action'
+      // 如果是跨域，就写完整的 URL，比如 'https://your-api.com/shop/track/action'
+      const apiUrl = '/api/shop/track/action'; // 这里改成你的真实 API 地址
+
+      const data = JSON.stringify({
+        shop_id: `shop_${shopId}`,
+        type: action,
+        phone: phone,
+        address: address || '',
+        timestamp: new Date().toISOString(),
+      });
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(`${apiUrl}`, new Blob([data], { type: 'application/json' }));
+        console.log('📊 Beacon sent from redirect page');
+      } else {
+        // 兼容方案
+        fetch(`${apiUrl}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: data,
+          keepalive: true
+        }).catch(err => console.warn('Fetch failed in redirect page'));
+      }
+    };
+
+    // 3. 执行跳转
+    const doRedirect = () => {
+      if (action === 'sms') {
+        const bodyText = encodeURIComponent('Hi, is there any availability today?');
+        window.location.replace(`sms:${phone}?body=${bodyText}`);
+      } else if (action === 'call') {
+        window.location.replace(`tel:${phone}`);
+      }
+    };
+
+    // 4. 先发数据，再跳转
+    sendStats();
+    setTimeout(doRedirect, 500); // 等待 500ms 确保数据发出
+  </script>
+</head>
+<body>
+  <p>Redirecting...</p>
+</body>
+</html>

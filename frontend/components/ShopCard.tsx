@@ -82,65 +82,25 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
   try {
     // 2. 发送统计请求
-  const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
+  const handleActionClick = (type, e) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-  const phone = shop.phone || '';
-  if (!phone) {
-    alert('No phone number available');
-    return;
-  }
-
-  // --- 核心修改：将跳转逻辑提取为一个函数 ---
-  const performRedirect = () => {
-    if (type === 'sms') {
-      const bodyText = encodeURIComponent('Hi, is there any availability today?');
-      window.location.replace(`sms:${phone}?body=${bodyText}`);
-    } else if (type === 'call') {
-      window.location.replace(`tel:${phone}`);
+    const phone = shop.phone || '';
+    if (!phone) {
+      alert('No phone number available');
+      return;
     }
+
+    // 不再直接跳转，而是跳转到中间页
+    const url = `/track?action=${type}&phone=${phone}`;
+    window.location.href = url;
   };
 
-  // 1. 构建统计数据
-  const apiUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiUrl) {
-    console.error('API URL not configured');
-    // 即使没URL，也要跳转，不能卡住用户
-    performRedirect(); // <--- 改用这里定义的函数
-    return;
-  }
-
-  const data = JSON.stringify({
-    shop_id: `shop_${shop.id}`,
-    type: type,
-    phone: phone,
-    address: shop.address || '',
-    timestamp: new Date().toISOString(),
-  });
-
-  // 2. 使用 sendBeacon 发送数据 (关键修改)
-  if (navigator.sendBeacon) {
-    try {
-      navigator.sendBeacon(`${apiUrl}/shop/track/action`, new Blob([data], { type: 'application/json' }));
-      console.log('📊 Beacon sent (Non-blocking)');
-    } catch (err) {
-      console.warn('Beacon send failed:', err);
-    }
-  } else {
-    // 兼容方案
-    fetch(`${apiUrl}/shop/track/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: data,
-      keepalive: true,
-    }).catch(err => console.warn('Fetch failed, but user is being redirected anyway'));
-  }
-
-  // 3. 立即执行跳转 (不需要 setTimeout 了)
-  // sendBeacon 是非阻塞的，可以立刻跳转
-  performRedirect();
-};
+    // 3. 立即执行跳转 (不需要 setTimeout 了)
+    // sendBeacon 是非阻塞的，可以立刻跳转
+    performRedirect();
+  };
 
     // 3. 立即跳转（不需要 setTimeout 了）
     setTimeout(() => {
