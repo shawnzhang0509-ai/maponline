@@ -70,19 +70,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     removePictureIds: [],
   });
   const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-  // 1. 阻止默认行为（防止页面跳转或链接打开）
-  e.preventDefault();
-  e.stopPropagation();
-
-  const phone = shop.phone || '';
-  if (!phone) {
-    alert('No phone number available');
-    return;
-  }
-
-  try {
-    // 2. 发送统计请求
-  const handleActionClick = (type, e) => {
+    // 1. 阻止默认行为
     e.preventDefault();
     e.stopPropagation();
 
@@ -92,25 +80,37 @@ const ShopCard: React.FC<ShopCardProps> = ({
       return;
     }
 
-    // 不再直接跳转，而是跳转到中间页
-    const url = `/track?action=${type}&phone=${phone}`;
-    window.location.href = url;
-  };
+    // 2. 构造跳转链接 (先准备好，一会儿用)
+    let targetUrl = '';
+    if (type === 'sms') {
+      targetUrl = `sms:${phone}?body=${encodeURIComponent('Hi, is there any availability today?')}`;
+    } else if (type === 'call') {
+      targetUrl = `tel:${phone}`;
+    }
 
-    // 3. 立即执行跳转 (不需要 setTimeout 了)
-    // sendBeacon 是非阻塞的，可以立刻跳转
-    performRedirect();
+    try {
+      // 3. 发送统计请求 (POST 到你的 PostgreSQL 接口)
+      // 注意：这里用 await 等待请求发出去，保证数据尽量不丢
+      await fetch(`${API_BASE_URL}/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shop_id: shop.id,
+          action: type,
+          phone: phone,
+          address: shop.address || '',
+          timestamp: new Date().toISOString(),
+        }),
+      });
+    } catch (err) {
+      // 4. 就算统计报错，也不能耽误用户发短信，所以这里只打印错误，不中断流程
+      console.error('Stats failed:', err);
+    } finally {
+      // 5. 无论统计成功失败，最后都执行跳转
+      // 这一步是在用户点击的直接回调里执行的，浏览器通常会放行
+      window.location.href = targetUrl;
+    }
   };
-
-    // 3. 立即跳转（不需要 setTimeout 了）
-    setTimeout(() => {
-      if (type === 'sms') {
-        const bodyText = encodeURIComponent('Hi, is there any availability today?');
-        window.location.replace(`sms:${phone}?body=${bodyText}`); // 改用 replace
-      } else if (type === 'call') {
-        window.location.replace(`tel:${phone}`); // 改用 replace
-      }
-    }, 100);
 
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
