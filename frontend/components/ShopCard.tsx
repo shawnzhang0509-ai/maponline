@@ -69,48 +69,33 @@ const ShopCard: React.FC<ShopCardProps> = ({
     newPictures: [],
     removePictureIds: [],
   });
-  const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 1. 阻止默认行为
-    e.preventDefault();
-    e.stopPropagation();
-
-    const phone = shop.phone || '';
-    if (!phone) {
-      alert('No phone number available');
-      return;
-    }
-
-    // 2. 构造跳转链接 (先准备好，一会儿用)
-    let targetUrl = '';
-    if (type === 'sms') {
-      targetUrl = `sms:${phone}?body=${encodeURIComponent('Hi, is there any availability today?')}`;
-    } else if (type === 'call') {
-      targetUrl = `tel:${phone}`;
-    }
-
-    try {
-      // 3. 发送统计请求 (POST 到你的 PostgreSQL 接口)
-      // 注意：这里用 await 等待请求发出去，保证数据尽量不丢
-      await fetch(`${API_BASE_URL}/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shop_id: shop.id,
-          action: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString(),
-        }),
-      });
-    } catch (err) {
-      // 4. 就算统计报错，也不能耽误用户发短信，所以这里只打印错误，不中断流程
-      console.error('Stats failed:', err);
-    } finally {
-      // 5. 无论统计成功失败，最后都执行跳转
-      // 这一步是在用户点击的直接回调里执行的，浏览器通常会放行
-      window.location.href = targetUrl;
-    }
+  // 统计函数：用 Image 打点，不阻塞跳转
+  const trackAction = (type: 'sms' | 'call', shopId: string) => {
+    const img = new Image();
+    img.src = `${API_BASE_URL}/track?shop_id=${shopId}&action=${type}`;
   };
+
+  return (
+    <div>
+      {/* SMS 按钮：直接用 a 标签，href 是 sms 协议 */}
+      <a
+        href={`sms:${phone}?body=${encodeURIComponent('Hi, is there any availability today?')}`}
+        onClick={() => trackAction('sms', shop.id)} // 点击时发统计，不阻止默认行为
+        className="your-button-class"
+      >
+        SMS
+      </a>
+
+      {/* Call 按钮 */}
+      <a
+        href={`tel:${phone}`}
+        onClick={() => trackAction('call', shop.id)}
+        className="your-button-class"
+      >
+        Call
+      </a>
+    </div>
+  );
 
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
