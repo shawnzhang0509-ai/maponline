@@ -1,118 +1,82 @@
-from app import create_app
+from app import create_app  # 只导入函数，不立即执行
 from app.models.picture import Picture
 from app.models.shop import Shop
-from app.models.shop_picture import ShopPicture
+# from app.models.shop_picture import ShopPicture
 from app import db
 import logging
 from logging.config import fileConfig
 from flask import current_app
 from alembic import context
 
-app = create_app()
-target_metadata = db.metadata
+# target_metadata 必须在函数内获取，或者在这里延迟绑定
+# 先注释掉顶部的 app = create_app()
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# this is the Alembic Config object...
 config = context.config
-
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
-
-def get_engine():
-    try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
-        return current_app.extensions['migrate'].db.get_engine()
-    except (TypeError, AttributeError):
-        # this works with Flask-SQLAlchemy>=3
-        return current_app.extensions['migrate'].db.engine
-
-
-def get_engine_url():
-    try:
-        return get_engine().url.render_as_string(hide_password=False).replace(
-            '%', '%%')
-    except AttributeError:
-        return str(get_engine().url).replace('%', '%%')
-
-
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['migrate'].db
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-
-
-# def get_metadata():
-#     return db.metadata
-    # if hasattr(target_db, 'metadatas'):
-    #     return target_db.metadatas[None]
-    # return target_db.metadata
-
+# === 修改开始：删除顶部的 app = create_app() 和 get_engine 相关函数 ===
 
 def run_migrations_offline():
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
     """
+    离线模式保持不变，但通常我们需要在线模式。
+    """
+    # 如果你必须用离线模式，请确保 sqlalchemy.url 在 alembic.ini 中硬编码或正确传递
+    # 但为了修复你的问题，我们重点修改在线模式
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url, target_metadata=target_metadata, literal_binds=True
+        url=url, 
+        target_metadata=db.metadata, 
+        literal_binds=True 
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online():
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
     """
+    在线模式：正确处理应用上下文和迁移扩展
+    """
+    # 关键修改：直接获取 Engine，而不是 SQLAlchemy 实例
+    connectable = current_app.extensions['migrate'].db.engine
 
-    # this callback is used to prevent an auto-migration from being generated
-    # when there are no changes to the schema
-    # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-    def process_revision_directives(context, revision, directives):
-        if getattr(config.cmd_opts, 'autogenerate', False):
-            script = directives[0]
-            if script.upgrade_ops.is_empty():
-                directives[:] = []
-                logger.info('No changes in schema detected.')
-
-    conf_args = current_app.extensions['migrate'].configure_args
-    if conf_args.get("process_revision_directives") is None:
-        conf_args["process_revision_directives"] = process_revision_directives
-
-    connectable = get_engine()
-
+    # 现在 connectable 是 Engine，拥有 .connect() 方法
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata,
-            **conf_args
+            target_metadata=current_app.extensions['migrate'].db.metadata,
+            # 继承 migrate 的其他参数
+            **current_app.extensions['migrate'].configure_args
         )
+
+        # 保持回调函数不变
+        def process_revision_directives(context, revision, directives):
+            if getattr(config.cmd_opts, 'autogenerate', False):
+                script = directives[0]
+                if script.upgrade_ops.is_empty():
+                    directives[:] = []
+                    logger.info('No changes in schema detected.')
+
+        context.configure.process_revision_directives = process_revision_directives
 
         with context.begin_transaction():
             context.run_migrations()
 
+        # 4. 回调函数（防止空迁移）
+        def process_revision_directives(context, revision, directives):
+            if getattr(config.cmd_opts, 'autogenerate', False):
+                script = directives[0]
+                if script.upgrade_ops.is_empty():
+                    directives[:] = []
+                    logger.info('No changes in schema detected.')
+
+        # 5. 应用回调
+        context.configure.process_revision_directives = process_revision_directives
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+# === 修改结束 ===
 
 if context.is_offline_mode():
     run_migrations_offline()

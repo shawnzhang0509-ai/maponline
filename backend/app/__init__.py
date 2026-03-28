@@ -1,9 +1,11 @@
 import os
 from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate  # <--- 修改点 1
 from flask_cors import CORS
 
 db = SQLAlchemy()
+migrate = Migrate()  # <--- 修改点 2
 
 def create_app():
     app = Flask(__name__)
@@ -32,7 +34,9 @@ def create_app():
         os.makedirs(app.config['FILES_FOLDER'])
 
     db.init_app(app)
-    CORS(app, origins=["https://www.nzmassagemap.online", "http://localhost:3000", "http://127.0.0.1:3000"])
+    migrate.init_app(app, db)  # <--- 修改点 3：这是解决 'No such command db' 的关键！
+
+    CORS(app) # 允许所有来源，开发调试最方便
 
     # ==========================================
     # 👇 修改点 1：导入新的 ClickStat 模型
