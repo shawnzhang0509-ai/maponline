@@ -93,7 +93,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         };
 
         // 3. 使用 sendBeacon 发送 (手机端保活的关键)
-        const url = `${apiUrl}/shop/track/action`;
+        const url = `${apiUrl}/track/action`;
         const blob = new Blob([JSON.stringify(trackData)], { type: 'application/json' });
         
         // sendBeacon 是异步的，不会阻塞页面，且手机切后台也能发出去
