@@ -12,30 +12,51 @@ tracking_bp = Blueprint('tracking', __name__)
 @tracking_bp.route('/track/action', methods=['POST'])
 def track_action():
     try:
+        # 1. 打印原始请求头，检查 Content-Type 对不对
+        print("=== 🔍 收到请求 ===")
+        print("请求头 Content-Type:", request.headers.get('Content-Type'))
+
+        # 2. 打印原始数据，看看 body 里到底有啥
+        raw_data = request.get_data()
+        print("原始二进制数据:", raw_data)
+
+        # 3. 尝试解析 JSON
         data = request.get_json()
+        print("解析后的 JSON 对象:", data)
+
         if not data:
+            print("❌ 错误：JSON 解析失败，data 是空的")
             return jsonify({"error": "No JSON data provided"}), 400
 
+        # 4. 获取具体字段
         shop_id = data.get('shop_id')
-        action_type = data.get('type') 
+        action_type = data.get('type')  # 这里对应前端的 type
         phone = data.get('phone')
         
+        print(f"📦 提取到的参数 -> shop_id: {shop_id}, type: {action_type}, phone: {phone}")
+
         if not shop_id or not action_type:
+            print("❌ 错误：缺少必要参数")
             return jsonify({"error": "Missing required parameters"}), 400
 
+        # 5. 准备写入数据库
         stat = ClickStat(
             shop_id=shop_id, 
             action_type=action_type, 
             count=1,
             created_at=datetime.utcnow()
         )
+        
+        print("💾 准备写入数据库对象:", stat)
         db.session.add(stat)
         db.session.commit()
-
+        
+        print("✅ 写入成功！")
         return jsonify({"status": "success", "message": "Tracked"}), 200
 
     except Exception as e:
         db.session.rollback()
+        print("💥 发生异常:", str(e))
         return jsonify({"error": str(e)}), 500
 
 # ==========================================
