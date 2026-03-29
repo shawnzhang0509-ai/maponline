@@ -19,6 +19,7 @@ import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import StatsPage from './pages/StatsPage'; // 引入刚才写的页面
+import AdminStats from './AdminStats'; // 引入新组件
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -709,6 +710,8 @@ const App: React.FC = () => {
 
         {/* 统计页路由 */}
         <Route path="/stats/:shopId" element={<ShopStats />} />
+        {/* 👇 新增：全站统计路由 */}
+        <Route path="/admin/stats" element={<AdminStats />} />
       </Routes>
 
       <SidebarMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
