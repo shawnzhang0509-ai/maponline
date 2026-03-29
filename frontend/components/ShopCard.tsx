@@ -70,38 +70,37 @@ const ShopCard: React.FC<ShopCardProps> = ({
     removePictureIds: [],
   });
  const handleActionClick = (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 1. 阻止默认行为
     e.preventDefault();
     e.stopPropagation();
-
     const phone = shop.phone || '';
     if (!phone) {
         alert('No phone number available');
         return;
     }
 
-    // 2. 准备统计数据
+    // 1. 准备数据
     const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    const trackData = {
+        shop_id: `shop_${shop.id}`,
+        type: type,
+        phone: phone,
+        address: shop.address || '',
+        timestamp: new Date().toISOString(),
+        test_field: "CAN_YOU_SEE_ME" // 👈 加个显眼的测试字段
+    };
+
+    // 2. ✅ 【临时修改】不再发送，而是直接弹窗或打印
+    // const url = `${apiUrl}/track/action`;
     
-    if (apiUrl) {
-        const trackData = {
-            shop_id: `shop_${shop.id}`,
-            type: type,
-            phone: phone,
-            address: shop.address || '',
-            timestamp: new Date().toISOString()
-        };
+    console.log('🎯【准备发送的数据】:', trackData); // 控制台打印
+    
+    // 💥 强制弹窗：如果数据没发出去，你至少能看到这个弹窗
+    alert(`📸 模拟发送:\n${JSON.stringify(trackData, null, 2)}`);
 
-        // 3. 使用 sendBeacon 发送 (手机端保活的关键)
-        const url = `${apiUrl}/track/action`;
-        const blob = new Blob([JSON.stringify(trackData)], { type: 'application/json' });
-        
-        // sendBeacon 是异步的，不会阻塞页面，且手机切后台也能发出去
-        const success = navigator.sendBeacon(url, blob);
-        console.log('✅ Beacon sent:', success);
-    }
-
-    // 4. 立即执行跳转 (不需要 await，不需要 setTimeout)
+    // 3. 暂时注释掉下面这坨，先不发了，看看数据长啥样
+    // const blob = new Blob([JSON.stringify(trackData)]...
+    
+    // 4. 继续执行跳转
     if (type === 'sms') {
         const bodyText = encodeURIComponent('Hi, is there any availability today?');
         window.location.href = `sms:${phone}?body=${bodyText}`;
