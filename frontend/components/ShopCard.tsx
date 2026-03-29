@@ -70,37 +70,47 @@ const ShopCard: React.FC<ShopCardProps> = ({
     removePictureIds: [],
   });
  const handleActionClick = (type: 'sms' | 'call', e: React.MouseEvent) => {
+    // 1. 阻止默认行为和事件冒泡（防止触发父元素的点击事件）
     e.preventDefault();
     e.stopPropagation();
+
     const phone = shop.phone || '';
     if (!phone) {
         alert('No phone number available');
         return;
     }
 
-    // 1. 准备数据
+    // 2. 准备数据
     const apiUrl = import.meta.env.VITE_API_BASE_URL;
     const trackData = {
         shop_id: `shop_${shop.id}`,
         type: type,
         phone: phone,
         address: shop.address || '',
-        timestamp: new Date().toISOString(),
-        test_field: "CAN_YOU_SEE_ME" // 👈 加个显眼的测试字段
+        timestamp: new Date().toISOString()
     };
 
-    // 2. ✅ 【临时修改】不再发送，而是直接弹窗或打印
-    // const url = `${apiUrl}/track/action`;
-    
-    console.log('🎯【准备发送的数据】:', trackData); // 控制台打印
-    
-    // 💥 强制弹窗：如果数据没发出去，你至少能看到这个弹窗
-    alert(`📸 模拟发送:\n${JSON.stringify(trackData, null, 2)}`);
+    // 3. 发送统计请求 (关键修复：加上 mode: 'cors')
+    // 我们使用 .catch(() => {}) 来忽略错误，防止报错影响后续跳转
+    fetch(`${apiUrl}/track/action`, {
+        method: 'POST',
+        mode: 'cors', // 👈 强制开启跨域模式，告诉浏览器这是AJAX请求，不是导航
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(trackData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            console.error('Tracking failed:', response.status);
+        }
+    })
+    .catch(error => {
+        console.error('Tracking error:', error);
+    });
 
-    // 3. 暂时注释掉下面这坨，先不发了，看看数据长啥样
-    // const blob = new Blob([JSON.stringify(trackData)]...
-    
-    // 4. 继续执行跳转
+    // 4. 执行真正的跳转（发短信或打电话）
+    // 注意：这里必须放在 fetch 之后，且不等待 fetch 完成
     if (type === 'sms') {
         const bodyText = encodeURIComponent('Hi, is there any availability today?');
         window.location.href = `sms:${phone}?body=${bodyText}`;
