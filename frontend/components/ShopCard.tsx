@@ -69,87 +69,46 @@ const ShopCard: React.FC<ShopCardProps> = ({
     newPictures: [],
     removePictureIds: [],
   });
-  const handleActionClick = async (type: 'sms' | 'call', e: React.MouseEvent) => {
-    // 1. 阻止默认行为（防止页面跳转或链接打开）
+ const handleActionClick = (type: 'sms' | 'call', e: React.MouseEvent) => {
+    // 1. 阻止默认行为
     e.preventDefault();
     e.stopPropagation();
 
     const phone = shop.phone || '';
     if (!phone) {
-      alert('No phone number available');
-      return;
+        alert('No phone number available');
+        return;
     }
 
-    try {
-      // 2. 发送统计请求
-      const apiUrl = import.meta.env.VITE_API_BASE_URL;
-      if (!apiUrl) throw new Error('API URL not configured');
+    // 2. 准备统计数据
+    const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    
+    if (apiUrl) {
+        const trackData = {
+            shop_id: `shop_${shop.id}`,
+            type: type,
+            phone: phone,
+            address: shop.address || '',
+            timestamp: new Date().toISOString()
+        };
 
-      const response = await fetch(`${apiUrl}/shop/track/action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          shop_id: `shop_${shop.id}`, // ✅ 统一 ID 格式
-          type: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      if (response.ok) {
-        console.log('✅ Tracking event sent successfully');
-      } else {
-        console.error('❌ Failed to send tracking event');
-      }
-    } catch (error) {
-      console.warn('⚠️ Stats failed (non-critical):', error);
+        // 3. 使用 sendBeacon 发送 (手机端保活的关键)
+        const url = `${apiUrl}/shop/track/action`;
+        const blob = new Blob([JSON.stringify(trackData)], { type: 'application/json' });
+        
+        // sendBeacon 是异步的，不会阻塞页面，且手机切后台也能发出去
+        const success = navigator.sendBeacon(url, blob);
+        console.log('✅ Beacon sent:', success);
     }
 
-    // 3. 执行跳转逻辑（无论统计成功与否都执行）
+    // 4. 立即执行跳转 (不需要 await，不需要 setTimeout)
     if (type === 'sms') {
-      const bodyText = encodeURIComponent('Hi, is there any availability today?');
-      window.location.href = `sms:${phone}?body=${bodyText}`;
+        const bodyText = encodeURIComponent('Hi, is there any availability today?');
+        window.location.href = `sms:${phone}?body=${bodyText}`;
     } else if (type === 'call') {
-      window.location.href = `tel:${phone}`;
+        window.location.href = `tel:${phone}`;
     }
-  };
-
-    try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL;
-      if (!apiUrl) throw new Error('API URL not configured');
-
-      await fetch(`${apiUrl}/shop/track/action`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json' // ✅ 1. 保持这个 Header
-        },
-        // mode: 'no-cors', // ❌ 2. 【关键】删除这一行！不要使用 no-cors
-        body: JSON.stringify({
-          shop_id: `shop_${shop.id}`, // ✅ 修改这一行
-          type: type,
-          phone: phone,
-          address: shop.address || '',
-          timestamp: new Date().toISOString()
-        }),
-      });
-      
-      console.log(`✅ Stats sent for ${type}`);
-    } catch (error) {
-      // 即使统计失败，也不影响用户跳转，只打印警告
-      console.warn('⚠️ Stats failed (non-critical):', error);
-    }
-
-    // 执行跳转逻辑 (无论统计成功与否都执行)
-    if (type === 'sms') {
-      const bodyText = encodeURIComponent('Hi, is there any availability today?');
-      window.location.href = `sms:${phone}?body=${bodyText}`;
-    } else if (type === 'call') {
-      window.location.href = `tel:${phone}`;
-    }
-  };
+};
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;

@@ -703,7 +703,11 @@ const App: React.FC = () => {
         {/* 首页路由 */}
         <Route path="/" element={<HomePage />} />
         
-        {/* ✅ 修改点：把路径改成 /tracking/stats */}
+        {/* ✅ 新增：店铺详情页路由 (关键修复) */}
+        {/* :slug 是一个动态参数，可以匹配 relax, massage, abc 等任意值 */}
+        <Route path="/shop/:slug" element={<ShopDetailPage />} />
+
+        {/* 统计页路由 */}
         <Route path="/stats/:shopId" element={<ShopStats />} />
       </Routes>
 
