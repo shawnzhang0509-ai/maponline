@@ -41,8 +41,6 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)  # <--- 修改点 3：这是解决 'No such command db' 的关键！
 
-    CORS(app) # 允许所有来源，开发调试最方便
-
     # ==========================================
     # 👇 修改点 1：导入新的 ClickStat 模型
     # ==========================================
@@ -58,7 +56,7 @@ def create_app():
     from app.routes.user import user_bp
     from app.routes.tracking import tracking_bp  # <--- 新增导入
 
-    app.register_blueprint(shop_bp)
+    app.register_blueprint(shop_bp, url_prefix='/shop')
     app.register_blueprint(user_bp)
     app.register_blueprint(tracking_bp) 
 
