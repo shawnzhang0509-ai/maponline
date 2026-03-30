@@ -94,7 +94,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
     // 3. 发送统计请求 (关键修复：加上 mode: 'cors')
     // 我们使用 .catch(() => {}) 来忽略错误，防止报错影响后续跳转
-    fetch(`${apiUrl}/track/action`, {
+    fetch(`https://nzmassagemap.onrender.com/track/action`, {
         method: 'POST',
         mode: 'cors', // 👈 强制开启跨域模式，告诉浏览器这是AJAX请求，不是导航
         headers: {
