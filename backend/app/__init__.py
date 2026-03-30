@@ -58,7 +58,7 @@ def create_app():
     from app.routes.user import user_bp
     from app.routes.tracking import tracking_bp  # <--- 新增导入
 
-    app.register_blueprint(shop_bp, url_prefix='/shop')
+    app.register_blueprint(shop_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(tracking_bp) 
 
