@@ -120,7 +120,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 };
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+    const API_BASE_URL = 'https://nzmassagemap.onrender.com';
     if (!API_BASE_URL) {
       alert('❌ 错误：API URL 未配置');
       return;
