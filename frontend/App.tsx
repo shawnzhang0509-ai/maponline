@@ -19,7 +19,7 @@ import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import StatsPage from './pages/StatsPage'; // 引入刚才写的页面
-import AdminStats from './AdminStats'; // 引入新组件
+import AdminStats from "./pages/AdminStats";
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -384,7 +384,7 @@ const HomePage: React.FC = () => {
   // Business Logic
   const fetchShops = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/shop/shops`);
+      const response = await fetch(`${API_BASE_URL}/shops`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       let data = await response.json();
       const fixedData = data.map((shop: any) => ({
