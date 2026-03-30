@@ -384,6 +384,7 @@ const HomePage: React.FC = () => {
   // Business Logic
   const fetchShops = async () => {
     try {
+      console.log(API_BASE_URL);
       const response = await fetch(`${API_BASE_URL}/shops`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       let data = await response.json();

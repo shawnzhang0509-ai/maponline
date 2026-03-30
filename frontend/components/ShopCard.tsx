@@ -81,9 +81,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     }
 
     // 2. 准备数据
-    // const apiUrl = import.meta.env.VITE_API_BASE_URL;
-    const apiUrl = 'https://nzmassagemap.onrender.com';
-
+    const apiUrl = import.meta.env.VITE_API_BASE_URL;
     const trackData = {
         shop_id: `shop_${shop.id}`,
         type: type,
@@ -94,7 +92,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
     // 3. 发送统计请求 (关键修复：加上 mode: 'cors')
     // 我们使用 .catch(() => {}) 来忽略错误，防止报错影响后续跳转
-    fetch(`https://nzmassagemap.onrender.com/track/action`, {
+    const url = `${apiUrl}/track/action`;
+    console.log(url);
+    fetch(url, {
         method: 'POST',
         mode: 'cors', // 👈 强制开启跨域模式，告诉浏览器这是AJAX请求，不是导航
         headers: {
@@ -122,8 +122,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 };
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
-    // const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-    const API_BASE_URL = 'https://nzmassagemap.onrender.com';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     if (!API_BASE_URL) {
       alert('❌ 错误：API URL 未配置');
       return;

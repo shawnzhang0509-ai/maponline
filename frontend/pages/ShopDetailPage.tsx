@@ -48,7 +48,7 @@ const ShopDetailPage: React.FC = () => {
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/shop/shops`);
+        const res = await fetch(`${API_BASE_URL}/shops`);
         const data = await res.json();
         
         const found = data.find((s: any) => {
