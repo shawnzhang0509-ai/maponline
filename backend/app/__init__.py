@@ -10,6 +10,11 @@ migrate = Migrate()  # <--- 修改点 2
 def create_app():
     app = Flask(__name__)
 
+    CORS(app, 
+         supports_credentials=True,           # <--- 关键：允许带凭据
+         origins=['https://www.nzmassagemap.online', 'http://localhost:5000'] # <--- 关键：明确允许的域名，不要用通配符 *
+    )
+
     # ... (前面的数据库配置代码保持不变) ...
     basedir_app = os.path.abspath(os.path.dirname(__file__))
     project_root = os.path.dirname(basedir_app) 
