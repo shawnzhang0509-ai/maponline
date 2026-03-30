@@ -81,7 +81,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
     }
 
     // 2. 准备数据
-    const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    // const apiUrl = import.meta.env.VITE_API_BASE_URL;
+    const apiUrl = 'https://nzmassagemap.onrender.com';
+
     const trackData = {
         shop_id: `shop_${shop.id}`,
         type: type,
@@ -120,6 +122,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 };
      // ... 原有的 handleSave 代码 ...
   const handleSave = async () => {
+    // const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
     const API_BASE_URL = 'https://nzmassagemap.onrender.com';
     if (!API_BASE_URL) {
       alert('❌ 错误：API URL 未配置');
