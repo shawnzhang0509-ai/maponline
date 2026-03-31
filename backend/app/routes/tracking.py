@@ -1,10 +1,11 @@
 import re
+from collections import defaultdict
 from flask import Blueprint, request, jsonify
 from app.models.click_stat import ClickStat
 from app.models.shop import Shop
 from app import db
 from datetime import datetime
-from sqlalchemy import func, case
+from sqlalchemy import func, cast, String
 
 tracking_bp = Blueprint('tracking', __name__)
 
@@ -33,6 +34,20 @@ def _normalize_shop_id(raw_shop_id):
         return int(match.group(1))
 
     return None
+
+
+def _shop_id_candidates(normalized_shop_id):
+    """
+    Return all compatible shop_id representations used in legacy data.
+    Example for 8: {"8", "shop_8", "shop-8"}.
+    """
+    if normalized_shop_id is None:
+        return set()
+    return {
+        str(normalized_shop_id),
+        f"shop_{normalized_shop_id}",
+        f"shop-{normalized_shop_id}",
+    }
 
 # ==========================================
 # 1. 写入接口 (保持不变)
@@ -79,7 +94,11 @@ def get_stats(shop_id):
         if normalized_shop_id is None:
             return jsonify({"error": "Invalid shop_id"}), 400
 
-        records = ClickStat.query.filter_by(shop_id=normalized_shop_id).all()
+        # Use cast(..., String) so query works whether DB column is int or text.
+        candidates = _shop_id_candidates(normalized_shop_id)
+        records = ClickStat.query.filter(
+            cast(ClickStat.shop_id, String).in_(list(candidates))
+        ).all()
         shop = Shop.query.get(normalized_shop_id)
 
         sms_count = sum(r.count for r in records if r.action_type == 'sms')
@@ -106,29 +125,53 @@ def get_all_stats():
     使用 SQL GROUP BY 进行聚合，效率最高
     """
     try:
-        results = db.session.query(
-            ClickStat.shop_id,
-            Shop.name.label('shop_name'),
-            func.sum(case((ClickStat.action_type == 'sms', ClickStat.count), else_=0)).label('sms'),
-            func.sum(case((ClickStat.action_type == 'call', ClickStat.count), else_=0)).label('call'),
-            func.sum(ClickStat.count).label('total')
-        ).outerjoin(
-            Shop, Shop.id == ClickStat.shop_id
+        # Aggregate by raw stored value first, then merge in Python by normalized ID.
+        # This avoids SQL type mismatch issues in legacy schemas (text vs int).
+        grouped_rows = db.session.query(
+            cast(ClickStat.shop_id, String).label("raw_shop_id"),
+            ClickStat.action_type,
+            func.sum(ClickStat.count).label("count")
         ).group_by(
-            ClickStat.shop_id, Shop.name
-        ).order_by(
-            func.sum(ClickStat.count).desc()
+            cast(ClickStat.shop_id, String),
+            ClickStat.action_type
         ).all()
 
+        aggregated = defaultdict(lambda: {"sms": 0, "call": 0, "total": 0})
+
+        for row in grouped_rows:
+            normalized = _normalize_shop_id(row.raw_shop_id)
+            key = normalized if normalized is not None else row.raw_shop_id
+            count = int(row.count or 0)
+
+            if row.action_type == "sms":
+                aggregated[key]["sms"] += count
+            elif row.action_type == "call":
+                aggregated[key]["call"] += count
+            aggregated[key]["total"] += count
+
+        numeric_shop_ids = [k for k in aggregated.keys() if isinstance(k, int)]
+        shop_name_map = {}
+        if numeric_shop_ids:
+            shops = Shop.query.filter(Shop.id.in_(numeric_shop_ids)).all()
+            shop_name_map = {shop.id: shop.name for shop in shops}
+
         json_results = []
-        for row in results:
+        for key, metrics in aggregated.items():
+            shop_id_value = key
+            shop_name_value = (
+                shop_name_map.get(key, "Unknown Shop Name")
+                if isinstance(key, int)
+                else "Unknown Shop Name"
+            )
             json_results.append({
-                "shop_id": row.shop_id,
-                "shop_name": row.shop_name or "Unknown Shop Name",
-                "sms": row.sms or 0,
-                "call": row.call or 0,
-                "total": row.total or 0
+                "shop_id": shop_id_value,
+                "shop_name": shop_name_value,
+                "sms": metrics["sms"],
+                "call": metrics["call"],
+                "total": metrics["total"]
             })
+
+        json_results.sort(key=lambda item: item["total"], reverse=True)
 
         return jsonify(json_results), 200
 
