@@ -83,7 +83,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     // 2. 准备数据
     const apiUrl = import.meta.env.VITE_API_BASE_URL;
     const trackData = {
-        shop_id: `shop_${shop.id}`,
+        shop_id: shop.id,
         type: type,
         phone: phone,
         address: shop.address || '',

@@ -1,10 +1,38 @@
-from flask import Blueprint, request, jsonify, current_app
+import re
+from flask import Blueprint, request, jsonify
 from app.models.click_stat import ClickStat
+from app.models.shop import Shop
 from app import db
 from datetime import datetime
-from sqlalchemy import func  # <--- 新增：用于 SQL 聚合计算
+from sqlalchemy import func, case
 
 tracking_bp = Blueprint('tracking', __name__)
+
+
+def _normalize_shop_id(raw_shop_id):
+    """
+    Normalize shop ID from payload/URL.
+    Accepts values like: 12, "12", "shop_12", "shop-12".
+    Returns int or None when invalid.
+    """
+    if raw_shop_id is None:
+        return None
+
+    if isinstance(raw_shop_id, int):
+        return raw_shop_id
+
+    raw = str(raw_shop_id).strip()
+    if not raw:
+        return None
+
+    if raw.isdigit():
+        return int(raw)
+
+    match = re.match(r"^shop[_-]?(\d+)$", raw, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+
+    return None
 
 # ==========================================
 # 1. 写入接口 (保持不变)
@@ -12,51 +40,33 @@ tracking_bp = Blueprint('tracking', __name__)
 @tracking_bp.route('/track/action', methods=['POST'])
 def track_action():
     try:
-        # 1. 打印原始请求头，检查 Content-Type 对不对
-        print("=== 🔍 收到请求 ===")
-        print("请求头 Content-Type:", request.headers.get('Content-Type'))
-
-        # 2. 打印原始数据，看看 body 里到底有啥
-        raw_data = request.get_data()
-        print("原始二进制数据:", raw_data)
-
-        # 3. 尝试解析 JSON
         data = request.get_json()
-        print("解析后的 JSON 对象:", data)
 
         if not data:
-            print("❌ 错误：JSON 解析失败，data 是空的")
             return jsonify({"error": "No JSON data provided"}), 400
 
-        # 4. 获取具体字段
-        shop_id = data.get('shop_id')
-        action_type = data.get('type')  # 这里对应前端的 type
+        raw_shop_id = data.get('shop_id')
+        shop_id = _normalize_shop_id(raw_shop_id)
+        action_type = data.get('type')
         phone = data.get('phone')
-        
-        print(f"📦 提取到的参数 -> shop_id: {shop_id}, type: {action_type}, phone: {phone}")
 
         if not shop_id or not action_type:
-            print("❌ 错误：缺少必要参数")
             return jsonify({"error": "Missing required parameters"}), 400
 
-        # 5. 准备写入数据库
         stat = ClickStat(
-            shop_id=shop_id, 
-            action_type=action_type, 
+            shop_id=shop_id,
+            action_type=action_type,
             count=1,
             created_at=datetime.utcnow()
         )
-        
-        print("💾 准备写入数据库对象:", stat)
+
         db.session.add(stat)
         db.session.commit()
-        
-        print("✅ 写入成功！")
-        return jsonify({"status": "success", "message": "Tracked"}), 200
+
+        return jsonify({"status": "success", "message": "Tracked", "shop_id": shop_id}), 200
 
     except Exception as e:
         db.session.rollback()
-        print("💥 发生异常:", str(e))
         return jsonify({"error": str(e)}), 500
 
 # ==========================================
@@ -65,13 +75,19 @@ def track_action():
 @tracking_bp.route('/stats/<shop_id>', methods=['GET'])
 def get_stats(shop_id):
     try:
-        records = ClickStat.query.filter_by(shop_id=shop_id).all()
-        
+        normalized_shop_id = _normalize_shop_id(shop_id)
+        if normalized_shop_id is None:
+            return jsonify({"error": "Invalid shop_id"}), 400
+
+        records = ClickStat.query.filter_by(shop_id=normalized_shop_id).all()
+        shop = Shop.query.get(normalized_shop_id)
+
         sms_count = sum(r.count for r in records if r.action_type == 'sms')
         call_count = sum(r.count for r in records if r.action_type == 'call')
-        
+
         return jsonify({
-            "shop_id": shop_id,
+            "shop_id": normalized_shop_id,
+            "shop_name": shop.name if shop else "Unknown Shop Name",
             "sms": sms_count,
             "call": call_count,
             "total": sms_count + call_count
@@ -90,21 +106,26 @@ def get_all_stats():
     使用 SQL GROUP BY 进行聚合，效率最高
     """
     try:
-        # 使用 SQLAlchemy 的 func 进行 SQL 级别的聚合查询
-        # 相当于 SQL: SELECT shop_id, SUM(count) ... GROUP BY shop_id
         results = db.session.query(
             ClickStat.shop_id,
-            func.sum(func.case((ClickStat.action_type == 'sms', 1))).label('sms'),
-            func.sum(func.case((ClickStat.action_type == 'call', 1))).label('call'),
+            Shop.name.label('shop_name'),
+            func.sum(case((ClickStat.action_type == 'sms', ClickStat.count), else_=0)).label('sms'),
+            func.sum(case((ClickStat.action_type == 'call', ClickStat.count), else_=0)).label('call'),
             func.sum(ClickStat.count).label('total')
-        ).group_by(ClickStat.shop_id).order_by(func.sum(ClickStat.count).desc()).all()
-        
-        # 将结果转换为字典列表
+        ).outerjoin(
+            Shop, Shop.id == ClickStat.shop_id
+        ).group_by(
+            ClickStat.shop_id, Shop.name
+        ).order_by(
+            func.sum(ClickStat.count).desc()
+        ).all()
+
         json_results = []
         for row in results:
             json_results.append({
                 "shop_id": row.shop_id,
-                "sms": row.sms or 0, # 防止是 None
+                "shop_name": row.shop_name or "Unknown Shop Name",
+                "sms": row.sms or 0,
                 "call": row.call or 0,
                 "total": row.total or 0
             })

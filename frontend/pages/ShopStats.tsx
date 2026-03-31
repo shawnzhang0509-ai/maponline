@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom';
 // ✅ 3. 定义符合后端返回格式的类型
 interface StatsData {
   shop_id: string;
+  shop_name?: string;
   sms: number;
   call: number;
   total: number;
@@ -59,6 +60,9 @@ const ShopStats: React.FC = () => {
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-2">
         📊 Shop Statistics
+        <span className="text-base font-semibold text-gray-700">
+          {stats.shop_name || 'Unknown Shop Name'}
+        </span>
         <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
            ID: {currentShopId}
         </span>
