@@ -49,6 +49,15 @@ def _shop_id_candidates(normalized_shop_id):
         f"shop-{normalized_shop_id}",
     }
 
+
+def _parse_date_param(value, field_name):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError(f"Invalid {field_name}, expected YYYY-MM-DD")
+
 # ==========================================
 # 1. 写入接口 (保持不变)
 # ==========================================
@@ -175,5 +184,138 @@ def get_all_stats():
 
         return jsonify(json_results), 200
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@tracking_bp.route('/stats/<shop_id>/daily', methods=['GET'])
+def get_shop_daily_stats(shop_id):
+    """
+    单个店铺按天统计：返回每天 sms/call/total
+    """
+    try:
+        normalized_shop_id = _normalize_shop_id(shop_id)
+        if normalized_shop_id is None:
+            return jsonify({"error": "Invalid shop_id"}), 400
+
+        start_date = _parse_date_param(request.args.get("start_date"), "start_date")
+        end_date = _parse_date_param(request.args.get("end_date"), "end_date")
+        if start_date and end_date and start_date > end_date:
+            return jsonify({"error": "start_date must be <= end_date"}), 400
+
+        candidates = _shop_id_candidates(normalized_shop_id)
+        query = db.session.query(
+            func.date(ClickStat.created_at).label("stat_date"),
+            ClickStat.action_type,
+            func.sum(ClickStat.count).label("count")
+        ).filter(
+            cast(ClickStat.shop_id, String).in_(list(candidates))
+        )
+
+        if start_date:
+            query = query.filter(func.date(ClickStat.created_at) >= start_date)
+        if end_date:
+            query = query.filter(func.date(ClickStat.created_at) <= end_date)
+
+        rows = query.group_by(
+            func.date(ClickStat.created_at),
+            ClickStat.action_type
+        ).all()
+
+        by_date = defaultdict(lambda: {"sms": 0, "call": 0, "total": 0})
+        for row in rows:
+            if row.stat_date is None:
+                continue
+            date_key = row.stat_date.isoformat()
+            count = int(row.count or 0)
+            if row.action_type == "sms":
+                by_date[date_key]["sms"] += count
+            elif row.action_type == "call":
+                by_date[date_key]["call"] += count
+            by_date[date_key]["total"] += count
+
+        daily = [
+            {
+                "date": date_key,
+                "sms": metrics["sms"],
+                "call": metrics["call"],
+                "total": metrics["total"]
+            }
+            for date_key, metrics in by_date.items()
+        ]
+        daily.sort(key=lambda item: item["date"], reverse=True)
+
+        shop = Shop.query.get(normalized_shop_id)
+        return jsonify({
+            "shop_id": normalized_shop_id,
+            "shop_name": shop.name if shop else "Unknown Shop Name",
+            "daily": daily
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@tracking_bp.route('/stats/daily-summary', methods=['GET'])
+def get_daily_summary():
+    """
+    全店铺按天统计汇总：每行 = 某天 + 某店铺
+    """
+    try:
+        start_date = _parse_date_param(request.args.get("start_date"), "start_date")
+        end_date = _parse_date_param(request.args.get("end_date"), "end_date")
+        if start_date and end_date and start_date > end_date:
+            return jsonify({"error": "start_date must be <= end_date"}), 400
+
+        query = db.session.query(
+            func.date(ClickStat.created_at).label("stat_date"),
+            cast(ClickStat.shop_id, String).label("raw_shop_id"),
+            ClickStat.action_type,
+            func.sum(ClickStat.count).label("count")
+        )
+
+        if start_date:
+            query = query.filter(func.date(ClickStat.created_at) >= start_date)
+        if end_date:
+            query = query.filter(func.date(ClickStat.created_at) <= end_date)
+
+        rows = query.group_by(
+            func.date(ClickStat.created_at),
+            cast(ClickStat.shop_id, String),
+            ClickStat.action_type
+        ).all()
+
+        aggregated = defaultdict(lambda: {"sms": 0, "call": 0, "total": 0})
+        for row in rows:
+            if row.stat_date is None:
+                continue
+            normalized = _normalize_shop_id(row.raw_shop_id)
+            shop_key = normalized if normalized is not None else row.raw_shop_id
+            key = (row.stat_date.isoformat(), shop_key)
+            count = int(row.count or 0)
+            if row.action_type == "sms":
+                aggregated[key]["sms"] += count
+            elif row.action_type == "call":
+                aggregated[key]["call"] += count
+            aggregated[key]["total"] += count
+
+        numeric_shop_ids = [k[1] for k in aggregated.keys() if isinstance(k[1], int)]
+        shop_name_map = {}
+        if numeric_shop_ids:
+            shops = Shop.query.filter(Shop.id.in_(numeric_shop_ids)).all()
+            shop_name_map = {shop.id: shop.name for shop in shops}
+
+        result = []
+        for (date_key, shop_key), metrics in aggregated.items():
+            result.append({
+                "date": date_key,
+                "shop_id": shop_key,
+                "shop_name": shop_name_map.get(shop_key, "Unknown Shop Name") if isinstance(shop_key, int) else "Unknown Shop Name",
+                "sms": metrics["sms"],
+                "call": metrics["call"],
+                "total": metrics["total"]
+            })
+
+        result.sort(key=lambda item: (item["date"], item["total"]), reverse=True)
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
