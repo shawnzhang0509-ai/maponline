@@ -30,13 +30,28 @@ def _can_edit_shop(user, shop_id):
     owner = ShopOwner.query.filter_by(shop_id=shop_id, user_id=user.id).first()
     return owner is not None
 
+
+def _editable_shop_ids(user):
+    if not user:
+        return set()
+    if _is_admin_user(user):
+        return None  # None means all shops editable.
+    owner_links = ShopOwner.query.filter_by(user_id=user.id).all()
+    return {item.shop_id for item in owner_links}
+
 @shop_bp.route('/search', methods=['GET'])
 def search():
+    auth_user = _require_auth_user()
     keyword = request.args.get('keyword', '').strip()
     results = service.search_shop(keyword)
-    
-    # ✅ 修改：直接调用 to_dict()，自动包含 about_me 和 additional_price
-    return jsonify([shop.to_dict() for shop in results])
+    editable_ids = _editable_shop_ids(auth_user)
+
+    payload = []
+    for shop in results:
+        item = shop.to_dict()
+        item["can_edit"] = (editable_ids is None) or (shop.id in editable_ids)
+        payload.append(item)
+    return jsonify(payload)
 
 @shop_bp.route('/add', methods=['POST'])
 def add_shop():
@@ -158,7 +173,32 @@ def update_shop_by_name(shop_name):
 
 @shop_bp.route('/shops', methods=['GET'])
 def get_all_shops():
-    shops = service.get_all_shops()
-    
-    # ✅ 修改：直接调用 to_dict()，自动包含所有新字段
-    return jsonify([shop.to_dict() for shop in shops])
+    auth_user = _require_auth_user()
+    keyword = request.args.get('keyword', '').strip()
+    shops = service.search_shop(keyword) if keyword else service.get_all_shops()
+    editable_ids = _editable_shop_ids(auth_user)
+
+    payload = []
+    for shop in shops:
+        item = shop.to_dict()
+        item["can_edit"] = (editable_ids is None) or (shop.id in editable_ids)
+        payload.append(item)
+    return jsonify(payload)
+
+
+@shop_bp.route('/mine', methods=['GET'])
+def get_my_shops():
+    auth_user = _require_auth_user()
+    if not auth_user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    editable_ids = _editable_shop_ids(auth_user)
+    all_shops = service.get_all_shops()
+    shops = all_shops if editable_ids is None else [s for s in all_shops if s.id in editable_ids]
+
+    payload = []
+    for shop in shops:
+        item = shop.to_dict()
+        item["can_edit"] = True
+        payload.append(item)
+    return jsonify(payload)

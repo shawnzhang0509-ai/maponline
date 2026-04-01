@@ -8,6 +8,7 @@ export interface ShopBase {
   phone: string;
   new_girls_last_15_days?: boolean;
   badge_text: string;
+  can_edit?: boolean;
 }
 
 export interface ShopCreate extends ShopBase {

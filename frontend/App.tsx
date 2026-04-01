@@ -19,6 +19,7 @@ import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import AdminStats from './pages/Adminstats';
+import MyAdsPage from './pages/MyAdsPage';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -385,7 +386,10 @@ const HomePage: React.FC = () => {
   const fetchShops = async () => {
     try {
       console.log(API_BASE_URL);
-      const response = await fetch(`${API_BASE_URL}/shops`);
+      const token = localStorage.getItem('auth_token') || '';
+      const response = await fetch(`${API_BASE_URL}/shops`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       let data = await response.json();
       const fixedData = data.map((shop: any) => ({
@@ -408,7 +412,10 @@ const HomePage: React.FC = () => {
     try {
       let url = `${API_BASE_URL}/shop/shops`;
       if (keyword) url += `?keyword=${encodeURIComponent(keyword)}`;
-      const res = await fetch(url);
+      const token = localStorage.getItem('auth_token') || '';
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error('Network response was not ok');
       setShops(await res.json());
     } catch (err) { alert("Search failed"); } 
@@ -559,7 +566,13 @@ const HomePage: React.FC = () => {
 
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
-          <button onClick={() => isLoggedIn ? setShowAdmin(true) : setShowLogin(true)} className="p-3 bg-white text-rose-500 rounded-full shadow-lg"><Plus className="w-6 h-6" /></button>
+          <button
+            onClick={() => (isLoggedIn ? setShowAdmin(true) : setShowLogin(true))}
+            className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
+            title={isLoggedIn ? 'Add your ad' : 'Login to add ad'}
+          >
+            <Plus className="w-6 h-6" />
+          </button>
           <button onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
         </div>
 
@@ -716,6 +729,7 @@ const HomePage: React.FC = () => {
 
 const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [authVersion, setAuthVersion] = useState(0);
   
   return (
     <BrowserRouter>
@@ -726,7 +740,7 @@ const App: React.FC = () => {
       
       <Routes>
         {/* 首页路由 */}
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage key={`home-${authVersion}`} />} />
         
         {/* ✅ 新增：店铺详情页路由 (关键修复) */}
         {/* :slug 是一个动态参数，可以匹配 relax, massage, abc 等任意值 */}
@@ -736,9 +750,14 @@ const App: React.FC = () => {
         <Route path="/stats/:shopId" element={<ShopStats />} />
         {/* 👇 新增：全站统计路由 */}
         <Route path="/admin/stats" element={<AdminStats />} />
+        <Route path="/my-ads" element={<MyAdsPage />} />
       </Routes>
 
-      <SidebarMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <SidebarMenu
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        onAuthChanged={() => setAuthVersion((prev) => prev + 1)}
+      />
     </BrowserRouter>
   );
 };

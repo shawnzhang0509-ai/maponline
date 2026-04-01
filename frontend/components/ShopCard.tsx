@@ -14,6 +14,7 @@ interface ShopCardProps {
   onPreview?: (shop: Shop, index: number) => void;
   deleting?: boolean;
   isLoggedIn?: boolean;
+  canDelete?: boolean;
 }
 
 // ==========================================
@@ -46,6 +47,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   onPreview,
   deleting,
   isLoggedIn,
+  canDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
@@ -532,7 +534,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
       `}
     >
       {/* 操作按钮 */}
-      {isLoggedIn && (
+      {isLoggedIn && shop.can_edit && (
         <div className="absolute top-2 right-2 z-50 flex gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
@@ -540,18 +542,20 @@ const ShopCard: React.FC<ShopCardProps> = ({
           >
             ✏️
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!deleting && window.confirm(`Delete "${shop.name}"?`)) onDelete(shop);
-            }}
-            disabled={deleting}
-            className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md text-sm transition-colors ${
-              deleting ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'
-            }`}
-          >
-            {deleting ? '…' : '×'}
-          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!deleting && window.confirm(`Delete "${shop.name}"?`)) onDelete(shop);
+              }}
+              disabled={deleting}
+              className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md text-sm transition-colors ${
+                deleting ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'
+              }`}
+            >
+              {deleting ? '…' : '×'}
+            </button>
+          )}
         </div>
       )}
 
