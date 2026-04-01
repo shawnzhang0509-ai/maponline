@@ -63,6 +63,7 @@ const HomePage: React.FC = () => {
   
   const [isLoggedIn, setIsLoggedIn] = useState(() => typeof window !== 'undefined' && localStorage.getItem("admin_logged_in") === "true");
   const [username, setUsername] = useState<string | null>(() => typeof window !== 'undefined' ? localStorage.getItem('admin_username') : null);
+  const [isAdmin, setIsAdmin] = useState(() => typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true');
 
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -414,8 +415,25 @@ const HomePage: React.FC = () => {
     finally { setIsSearching(false); }
   };
 
-  const handleLoginSuccess = (u: string) => { setIsLoggedIn(true); setUsername(u); localStorage.setItem("admin_logged_in", "true"); localStorage.setItem('admin_username', u); };
-  const handleLogout = () => { setIsLoggedIn(false); setUsername(null); localStorage.removeItem("admin_logged_in"); localStorage.removeItem('admin_username'); };
+  const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean }) => {
+    const { username: u, token, isAdmin: adminFlag } = payload;
+    setIsLoggedIn(true);
+    setUsername(u);
+    setIsAdmin(adminFlag);
+    localStorage.setItem("admin_logged_in", "true");
+    localStorage.setItem('admin_username', u);
+    localStorage.setItem('auth_token', token || '');
+    localStorage.setItem('is_admin', adminFlag ? 'true' : 'false');
+  };
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUsername(null);
+    setIsAdmin(false);
+    localStorage.removeItem("admin_logged_in");
+    localStorage.removeItem('admin_username');
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('is_admin');
+  };
   
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -484,8 +502,13 @@ const HomePage: React.FC = () => {
     if (!confirm(`Delete "${shop.name}"? This cannot be undone.`)) return;
     setDeletingId(shop.id);
     try {
+      const token = localStorage.getItem('auth_token') || '';
       const res = await fetch(`${API_BASE_URL}/shop/del`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ id: shop.id, token: "my_super_secret_delete_token" }),
       });
       const result = await res.json();
@@ -628,6 +651,7 @@ const HomePage: React.FC = () => {
                             isSelected={isSelected}
                             onClick={() => {}} 
                             onDelete={handleDeleteShop}
+                            canDelete={isAdmin}
                             onSave={(updated) => {
                               const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
                               setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
@@ -677,7 +701,7 @@ const HomePage: React.FC = () => {
       </div>
 
       {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
-      {showLogin && <LoginPanel onLoginSuccess={(u) => { handleLoginSuccess(u); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
+      {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
       {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
       
       {/* ✅ 新增：年龄验证弹窗 */}

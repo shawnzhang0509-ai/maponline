@@ -33,3 +33,9 @@ export interface UserLocation {
   lat: number;
   lng: number;
 }
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  is_admin: boolean;
+}

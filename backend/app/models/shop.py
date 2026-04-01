@@ -26,6 +26,11 @@ class Shop(db.Model):
         secondary='shop_picture',
         back_populates='shops'
     )
+    owners = db.relationship(
+        'User',
+        secondary='shop_owner',
+        back_populates='shops'
+    )
 
     # 👇👇👇 修正后的 to_dict 方法 👇👇👇
     def to_dict(self):

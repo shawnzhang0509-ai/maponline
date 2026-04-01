@@ -150,7 +150,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
     const url = `${API_BASE_URL}/shop/update/${shop.id}`;
     
     try {
-      const res = await fetch(url, { method: 'POST', body: formData });
+      const token = localStorage.getItem('auth_token') || '';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData
+      });
       const responseText = await res.text();
 
       if (!res.ok) {

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
 
 interface LoginModalProps {
-  onLoginSuccess: (username: string) => void;
+  onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean }) => void;
   onClose: () => void;
 }
 
@@ -23,14 +23,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
         throw new Error('API base URL is not configured');
       }
 
-      const params = new URLSearchParams({ uname: username, pwd: password });
-      
-      // ✅ 发送请求到正确的 HTTPS 地址
-      const res = await fetch(`${API_BASE_URL}/login?${params.toString()}`, {
-        method: 'GET',
+      // ✅ 使用 POST 登录，后端会返回 token
+      const res = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
         headers: {
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ uname: username, pwd: password }),
       });
 
       if (!res.ok) {
@@ -40,9 +40,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
       const data = await res.json();
 
       if (data.success) {
+        const token = data.token || '';
+        const isAdmin = !!data.user?.is_admin;
         localStorage.setItem('admin_logged_in', 'true');
         localStorage.setItem('admin_username', username);
-        onLoginSuccess(username);
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('is_admin', isAdmin ? 'true' : 'false');
+        onLoginSuccess({ username, token, isAdmin });
         onClose();
       } else {
         setError('Invalid username or password');

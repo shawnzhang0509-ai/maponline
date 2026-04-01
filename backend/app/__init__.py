@@ -26,6 +26,7 @@ def create_app():
         print(f"⚠️ 未检测到 DATABASE_URL，正在使用本地 SQLite: {db_path}")
 
     app.config['ADMIN_DELETE_TOKEN'] = 'my_super_secret_delete_token'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     app.config['FILES_FOLDER'] = os.path.join(basedir_app, 'uploads') 
@@ -45,6 +46,8 @@ def create_app():
     from app.models.picture import Picture
     from app.models.association import ShopPicture
     from app.models.click_stat import ClickStat  # <--- 新增这一行
+    from app.models.user import User
+    from app.models.shop_owner import ShopOwner
 
     # ==========================================
     # 👇 修改点 2：注册 tracking 蓝图

@@ -66,7 +66,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     });
 
     try {
-      const res = await fetch(add_api_url, { method: "POST", body: formData });
+      const token = localStorage.getItem('auth_token') || '';
+      const res = await fetch(add_api_url, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData
+      });
       const result = await res.json();
 
       if (!res.ok) {

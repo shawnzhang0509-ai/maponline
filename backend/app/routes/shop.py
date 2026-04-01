@@ -1,8 +1,34 @@
 from flask import Blueprint, request, jsonify, current_app
+from app import db
 from app.services.shop_service import ShopService
+from app.models.user import User
+from app.models.shop_owner import ShopOwner
 
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
+
+
+def _require_auth_user():
+    token = request.headers.get('Authorization', '')
+    if not token.startswith('Bearer '):
+        return None
+    token = token.replace('Bearer ', '', 1).strip()
+    if not token:
+        return None
+    return User.verify_access_token(token)
+
+
+def _is_admin_user(user):
+    return bool(user and user.is_admin)
+
+
+def _can_edit_shop(user, shop_id):
+    if not user:
+        return False
+    if _is_admin_user(user):
+        return True
+    owner = ShopOwner.query.filter_by(shop_id=shop_id, user_id=user.id).first()
+    return owner is not None
 
 @shop_bp.route('/search', methods=['GET'])
 def search():
@@ -14,9 +40,18 @@ def search():
 
 @shop_bp.route('/add', methods=['POST'])
 def add_shop():
+    auth_user = _require_auth_user()
+    if not auth_user:
+        return jsonify({"error": "Unauthorized"}), 401
+
     data = request.form.to_dict() 
     files = request.files.getlist("pictures") 
     shop = service.add_shop(data=data, files=files)
+
+    existing = ShopOwner.query.filter_by(shop_id=shop.id, user_id=auth_user.id).first()
+    if not existing:
+        db.session.add(ShopOwner(shop_id=shop.id, user_id=auth_user.id))
+        db.session.commit()
 
     # ✅ 修改：直接调用 to_dict()
     return jsonify(shop.to_dict())
@@ -28,6 +63,10 @@ def list_all():
 
 @shop_bp.route('/del', methods=['POST'])
 def delete_shop():
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
     data = request.get_json() or {}
     shop_id = data.get('id')
     token = data.get('token')
@@ -49,6 +88,10 @@ def delete_shop():
 @shop_bp.route('/update/<int:shop_id>', methods=['POST'])
 def update_shop(shop_id):
     try:
+        auth_user = _require_auth_user()
+        if not _can_edit_shop(auth_user, shop_id):
+            return jsonify({"error": "Unauthorized"}), 401
+
         data = request.form.to_dict()
         files = request.files.getlist("pictures")
         shop = service.update_shop(shop_id=shop_id, data=data, files=files)
@@ -96,6 +139,10 @@ def update_shop_by_name(shop_name):
 
         if not target_shop:
             return jsonify({"error": f"未找到名为 '{clean_name}' 的店铺"}), 404
+
+        auth_user = _require_auth_user()
+        if not _can_edit_shop(auth_user, target_shop.id):
+            return jsonify({"error": "Unauthorized"}), 401
 
         current_app.logger.info(f"✅ 找到店铺 ID: {target_shop.id}, 准备更新...")
 
