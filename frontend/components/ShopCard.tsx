@@ -14,6 +14,7 @@ interface ShopCardProps {
   onPreview?: (shop: Shop, index: number) => void;
   deleting?: boolean;
   isLoggedIn?: boolean;
+  isAdmin?: boolean;
   canDelete?: boolean;
 }
 
@@ -47,6 +48,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   onPreview,
   deleting,
   isLoggedIn,
+  isAdmin,
   canDelete,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -416,8 +418,18 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 onChange={(e) => setEditData({ ...editData, badge_text: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
                 placeholder="e.g. Diamond, VIP, New, Thai"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                disabled={!isAdmin}
+                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none ${
+                  isAdmin
+                    ? 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white'
+                    : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
               />
+              {!isAdmin && (
+                <p className="text-[10px] text-amber-600 mt-1">
+                  Badge is admin-only and cannot be changed by normal users.
+                </p>
+              )}
               <p className="text-[10px] text-gray-500 mt-1">
                 Separate with commas. Keywords like "Diamond", "VIP", "New" get special icons.
               </p>

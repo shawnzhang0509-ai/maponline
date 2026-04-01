@@ -40,6 +40,18 @@ def _editable_shop_ids(user):
     owner_links = ShopOwner.query.filter_by(user_id=user.id).all()
     return {item.shop_id for item in owner_links}
 
+
+def _sanitize_shop_payload_for_role(data, user):
+    """
+    Enforce admin-only editable fields.
+    Non-admin users cannot set or update badge-related fields.
+    """
+    cleaned = dict(data or {})
+    if not _is_admin_user(user):
+        cleaned.pop("badge_text", None)
+        cleaned.pop("new_girls_last_15_days", None)
+    return cleaned
+
 @shop_bp.route('/search', methods=['GET'])
 @shop_bp.route('/shop/search', methods=['GET'])
 def search():
@@ -62,7 +74,7 @@ def add_shop():
     if not auth_user:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.form.to_dict() 
+    data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
     files = request.files.getlist("pictures") 
     shop = service.add_shop(data=data, files=files)
 
@@ -113,7 +125,7 @@ def update_shop(shop_id):
         if not _can_edit_shop(auth_user, shop_id):
             return jsonify({"error": "Unauthorized"}), 401
 
-        data = request.form.to_dict()
+        data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
         files = request.files.getlist("pictures")
         shop = service.update_shop(shop_id=shop_id, data=data, files=files)
         
@@ -165,6 +177,7 @@ def update_shop_by_name(shop_name):
         auth_user = _require_auth_user()
         if not _can_edit_shop(auth_user, target_shop.id):
             return jsonify({"error": "Unauthorized"}), 401
+        data = _sanitize_shop_payload_for_role(data, auth_user)
 
         current_app.logger.info(f"✅ 找到店铺 ID: {target_shop.id}, 准备更新...")
 

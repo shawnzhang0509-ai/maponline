@@ -664,6 +664,7 @@ const HomePage: React.FC = () => {
                             isSelected={isSelected}
                             onClick={() => {}} 
                             onDelete={handleDeleteShop}
+                            isAdmin={isAdmin}
                             canDelete={isAdmin}
                             onSave={(updated) => {
                               const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
