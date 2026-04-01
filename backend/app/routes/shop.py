@@ -3,6 +3,7 @@ from app import db
 from app.services.shop_service import ShopService
 from app.models.user import User
 from app.models.shop_owner import ShopOwner
+from app.models.shop import Shop
 
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
@@ -40,6 +41,7 @@ def _editable_shop_ids(user):
     return {item.shop_id for item in owner_links}
 
 @shop_bp.route('/search', methods=['GET'])
+@shop_bp.route('/shop/search', methods=['GET'])
 def search():
     auth_user = _require_auth_user()
     keyword = request.args.get('keyword', '').strip()
@@ -54,6 +56,7 @@ def search():
     return jsonify(payload)
 
 @shop_bp.route('/add', methods=['POST'])
+@shop_bp.route('/shop/add', methods=['POST'])
 def add_shop():
     auth_user = _require_auth_user()
     if not auth_user:
@@ -73,10 +76,12 @@ def add_shop():
 
 # ✅ 临时加一个测试路由
 @shop_bp.route('/list')
+@shop_bp.route('/shop/list')
 def list_all():
     return jsonify({"shops": "This is a test endpoint"})
 
 @shop_bp.route('/del', methods=['POST'])
+@shop_bp.route('/shop/del', methods=['POST'])
 def delete_shop():
     auth_user = _require_auth_user()
     if not auth_user or not _is_admin_user(auth_user):
@@ -101,6 +106,7 @@ def delete_shop():
 
 # ✅ 原有路由：支持通过 ID 更新
 @shop_bp.route('/update/<int:shop_id>', methods=['POST'])
+@shop_bp.route('/shop/update/<int:shop_id>', methods=['POST'])
 def update_shop(shop_id):
     try:
         auth_user = _require_auth_user()
@@ -119,6 +125,7 @@ def update_shop(shop_id):
 
 # 🆕 新增路由：支持通过 店铺名称 更新
 @shop_bp.route('/update/<path:shop_name>', methods=['POST'])
+@shop_bp.route('/shop/update/<path:shop_name>', methods=['POST'])
 def update_shop_by_name(shop_name):
     try:
         clean_name = shop_name.strip()
@@ -172,6 +179,7 @@ def update_shop_by_name(shop_name):
         return jsonify({"error": "更新失败", "details": str(e)}), 500
 
 @shop_bp.route('/shops', methods=['GET'])
+@shop_bp.route('/shop/shops', methods=['GET'])
 def get_all_shops():
     auth_user = _require_auth_user()
     keyword = request.args.get('keyword', '').strip()
@@ -187,6 +195,7 @@ def get_all_shops():
 
 
 @shop_bp.route('/mine', methods=['GET'])
+@shop_bp.route('/shop/mine', methods=['GET'])
 def get_my_shops():
     auth_user = _require_auth_user()
     if not auth_user:
@@ -202,3 +211,51 @@ def get_my_shops():
         item["can_edit"] = True
         payload.append(item)
     return jsonify(payload)
+
+
+@shop_bp.route('/admin/users', methods=['GET'])
+@shop_bp.route('/shop/admin/users', methods=['GET'])
+def list_users_for_admin():
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    users = db.session.query(User).order_by(User.username.asc()).all()
+    return jsonify([u.to_dict() for u in users])
+
+
+@shop_bp.route('/admin/transfer-owner', methods=['POST'])
+@shop_bp.route('/shop/admin/transfer-owner', methods=['POST'])
+def transfer_shop_owner():
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    shop_id = data.get("shop_id")
+    username = (data.get("username") or "").strip()
+    if not shop_id or not username:
+        return jsonify({"error": "shop_id and username are required"}), 400
+
+    try:
+        shop_id = int(shop_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid shop_id"}), 400
+
+    shop = db.session.get(Shop, shop_id)
+    if not shop:
+        return jsonify({"error": "Shop not found"}), 404
+
+    target_user = db.session.query(User).filter(User.username == username).first()
+    if not target_user:
+        return jsonify({"error": "Target user not found"}), 404
+
+    db.session.query(ShopOwner).filter(ShopOwner.shop_id == shop_id).delete()
+    db.session.add(ShopOwner(shop_id=shop_id, user_id=target_user.id))
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "shop_id": shop_id,
+        "owner": target_user.to_dict()
+    })
