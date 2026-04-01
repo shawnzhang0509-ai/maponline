@@ -14,6 +14,13 @@ interface StatsData {
   total: number;
 }
 
+interface DailyStatsItem {
+  date: string;
+  sms: number;
+  call: number;
+  total: number;
+}
+
 const ShopStats: React.FC = () => {
   // ✅ 4. 从 URL 获取 shopId (例如 /stats/shop_1 -> shopId 就是 "shop_1")
   const { shopId } = useParams<{ shopId: string }>();
@@ -22,6 +29,7 @@ const ShopStats: React.FC = () => {
   const currentShopId = shopId || 'shop_123';
 
   const [stats, setStats] = useState<StatsData | null>(null); // ✅ 5. 状态改为存单个对象，而不是数组
+  const [dailyStats, setDailyStats] = useState<DailyStatsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +47,14 @@ const ShopStats: React.FC = () => {
         
         // ✅ 7. 直接存入数据，不需要排序（因为只有一个店铺的数据）
         setStats(data);
+
+        const dailyRes = await fetch(`${API_BASE_URL}/stats/${currentShopId}/daily`);
+        if (dailyRes.ok) {
+          const dailyData = await dailyRes.json();
+          setDailyStats(dailyData.daily || []);
+        } else {
+          setDailyStats([]);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
@@ -103,6 +119,38 @@ const ShopStats: React.FC = () => {
       <div className="mt-6 bg-gray-800 text-white p-6 rounded-lg shadow-lg text-center">
         <p className="text-gray-400 text-sm uppercase">总点击次数</p>
         <p className="text-4xl font-bold mt-2">{stats.total}</p>
+      </div>
+
+      <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b bg-gray-50">
+          <h2 className="font-semibold text-gray-800">逐日统计</h2>
+        </div>
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMS</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CALL</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总点击</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {dailyStats.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">暂无逐日数据</td>
+              </tr>
+            ) : (
+              dailyStats.map((item) => (
+                <tr key={item.date} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.date}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.sms}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.call}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{item.total}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
       
       <div className="mt-6 text-center text-xs text-gray-400">
