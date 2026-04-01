@@ -25,6 +25,7 @@ export interface Shop {
   badge_text?: string;        // 可选：标签文本
   new_girls_last_15_days?: boolean; // 可选：是否新店
   pictures?: Picture[];       // 可选：图片列表
+  can_edit?: boolean;         // 当前登录用户是否可编辑
   
   // ✅ 新增字段 (必须在这里定义，否则 TS 会报错)
   about_me?: string;          // 技师/店铺自我介绍

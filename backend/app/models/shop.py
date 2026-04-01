@@ -26,6 +26,11 @@ class Shop(db.Model):
         secondary='shop_picture',
         back_populates='shops'
     )
+    owners = db.relationship(
+        'User',
+        secondary='shop_owner',
+        back_populates='shops'
+    )
 
     # 👇👇👇 修正后的 to_dict 方法 👇👇👇
     def to_dict(self):
@@ -52,7 +57,8 @@ class Shop(db.Model):
             'about_me': self.about_me,
             'additional_price': self.additional_price,
             # 👇 使用转换后的图片数据 (而不是原始对象)
-            'pictures': pics_data
+            'pictures': pics_data,
+            'can_edit': False
         }
         
         # 👇 调试打印：你可以在后端控制台看到生成的完整 JSON 数据

@@ -8,6 +8,7 @@ export interface ShopBase {
   phone: string;
   new_girls_last_15_days?: boolean;
   badge_text: string;
+  can_edit?: boolean;
 }
 
 export interface ShopCreate extends ShopBase {
@@ -32,4 +33,10 @@ export interface ShopEdit extends Shop {
 export interface UserLocation {
   lat: number;
   lng: number;
+}
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  is_admin: boolean;
 }

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { X, Lock } from 'lucide-react';
 
 interface LoginModalProps {
-  onLoginSuccess: (username: string) => void;
+  onLoginSuccess: (payload: { username: string; token: string; isAdmin: boolean }) => void;
   onClose: () => void;
 }
 
@@ -11,8 +11,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -23,14 +24,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
         throw new Error('API base URL is not configured');
       }
 
-      const params = new URLSearchParams({ uname: username, pwd: password });
-      
-      // ✅ 发送请求到正确的 HTTPS 地址
-      const res = await fetch(`${API_BASE_URL}/login?${params.toString()}`, {
-        method: 'GET',
+      const endpoint = mode === 'register' ? '/register' : '/login';
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
         headers: {
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ uname: username, pwd: password }),
       });
 
       if (!res.ok) {
@@ -40,16 +41,25 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
       const data = await res.json();
 
       if (data.success) {
+        const token = data.token || '';
+        const isAdmin = !!data.user?.is_admin;
+        const resolvedUsername = data.user?.username || username;
         localStorage.setItem('admin_logged_in', 'true');
-        localStorage.setItem('admin_username', username);
-        onLoginSuccess(username);
+        localStorage.setItem('admin_username', resolvedUsername);
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('is_admin', isAdmin ? 'true' : 'false');
+        onLoginSuccess({ username: resolvedUsername, token, isAdmin });
         onClose();
       } else {
-        setError('Invalid username or password');
+        setError(data.error || 'Invalid username or password');
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('Network error. Please check your connection.');
+      setError(
+        mode === 'register'
+          ? 'Register failed. Please check your input or network.'
+          : 'Login failed. Please check your input or network.'
+      );
     }
   };
 
@@ -60,14 +70,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Lock className="w-5 h-5 text-rose-500" />
-              Admin Login
+              {mode === 'login' ? 'Login' : 'Register'}
             </h2>
             <button onClick={onClose} className="hover:text-gray-500">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <input
               placeholder="Username"
               value={username}
@@ -88,7 +98,17 @@ const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onClose }) => {
               type="submit"
               className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold hover:bg-rose-600 transition"
             >
-              Login
+              {mode === 'login' ? 'Login' : 'Create Account'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError('');
+                setMode((prev) => (prev === 'login' ? 'register' : 'login'));
+              }}
+              className="w-full text-sm text-gray-600 hover:text-gray-800 underline"
+            >
+              {mode === 'login' ? 'No account? Register here' : 'Already have an account? Login'}
             </button>
           </form>
         </div>
