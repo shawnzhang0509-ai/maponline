@@ -20,6 +20,7 @@ import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'luc
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
+import AssignAdsPage from './pages/AssignAdsPage';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -542,7 +543,7 @@ const HomePage: React.FC = () => {
       {/* 👆 插入结束 👆 */}
 
       {allTags.length > 0 && (
-        <div className="absolute top-[70px] left-0 right-0 z-[998] px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar py-3 pointer-events-auto">
             <span className="text-xs font-bold text-gray-400 mr-2 uppercase tracking-wider whitespace-nowrap">Badges:</span>
             {selectedTag && <button onClick={() => setSelectedTag(null)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-gray-800 text-white text-xs font-bold rounded-full hover:bg-gray-700 transition-colors shadow-md">Clear <X size={12} /></button>}
@@ -583,19 +584,10 @@ const HomePage: React.FC = () => {
             <span className="text-sm font-bold text-rose-600 w-10 text-right">{radiusKm}km</span>
             <button 
               onClick={() => {
-                // 1. 关闭筛选模式
                 setUseNearbyFilter(false);
-                
-                // 2. 清空用户位置（红圈消失）
                 setUserLocation(null);
-                
-                // 3. 取消选中的店铺
                 setSelectedShop(null);
-                
-                // 4. 【关键】强制重置中心点 (你的默认坐标)
                 setCenter({ lat: -50.8485, lng: 174.7633 });
-                
-                // 5. 【关键】强制重置缩放级别为 5.5
                 setZoom(5.5);
               }} 
               className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"
@@ -648,14 +640,9 @@ const HomePage: React.FC = () => {
                           className="block flex-shrink-0 flex-grow-0 no-drag relative"
                           style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
                           onClick={(e) => {
-                            // 获取点击坐标
                             const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
                             const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
-                            
-                            // 阻止事件冒泡（虽然 div 没默认行为，但这是好习惯）
                             e.stopPropagation(); 
-                            
-                            // 调用原有的点击逻辑
                             handleCardClick(shop, finalX);
                           }}
                         >
@@ -751,6 +738,7 @@ const App: React.FC = () => {
         <Route path="/stats/:shopId" element={<ShopStats />} />
         {/* 👇 新增：全站统计路由 */}
         <Route path="/admin/stats" element={<AdminStats />} />
+        <Route path="/admin/assign-ads" element={<AssignAdsPage />} />
         <Route path="/my-ads" element={<MyAdsPage />} />
       </Routes>
 
