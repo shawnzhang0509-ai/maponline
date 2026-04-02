@@ -714,6 +714,18 @@ const HomePage: React.FC = () => {
 const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [authVersion, setAuthVersion] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true'
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleStorage = () => {
+      setIsAdmin(localStorage.getItem('is_admin') === 'true');
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
   
   return (
     <BrowserRouter>
@@ -743,7 +755,10 @@ const App: React.FC = () => {
       <SidebarMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        onAuthChanged={() => setAuthVersion((prev) => prev + 1)}
+        onAuthChanged={() => {
+          setAuthVersion((prev) => prev + 1);
+          setIsAdmin(typeof window !== 'undefined' && localStorage.getItem('is_admin') === 'true');
+        }}
         isAdmin={isAdmin}
       />
     </BrowserRouter>
