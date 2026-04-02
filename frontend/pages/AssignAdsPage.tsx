@@ -8,6 +8,12 @@ interface UserItem {
   is_admin: boolean;
 }
 
+interface OwnerRow {
+  shop_id: number;
+  owner_user_id: number;
+  owner_username: string;
+}
+
 const AssignAdsPage: React.FC = () => {
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -17,6 +23,7 @@ const AssignAdsPage: React.FC = () => {
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [owners, setOwners] = useState<Record<number, OwnerRow>>({});
   const [selectedOwner, setSelectedOwner] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +51,18 @@ const AssignAdsPage: React.FC = () => {
 
         const usersData: UserItem[] = await usersRes.json();
         const shopsData: Shop[] = await shopsRes.json();
+        const ownerRes = await fetch(`${API_BASE_URL}/shop/admin/owners`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const ownerData: OwnerRow[] = ownerRes.ok ? await ownerRes.json() : [];
 
         setUsers(usersData);
         setShops(shopsData);
+        const ownerMap: Record<number, OwnerRow> = {};
+        ownerData.forEach((row) => {
+          ownerMap[row.shop_id] = row;
+        });
+        setOwners(ownerMap);
 
         const initialSelected: Record<number, string> = {};
         for (const shop of shopsData) {
@@ -91,6 +107,14 @@ const AssignAdsPage: React.FC = () => {
         throw new Error(payload.error || 'Failed to assign owner');
       }
 
+      setOwners((prev) => ({
+        ...prev,
+        [shopId]: {
+          shop_id: shopId,
+          owner_user_id: payload.owner.id,
+          owner_username: payload.owner.username,
+        },
+      }));
       alert(`Assigned shop #${shopId} to ${username}.`);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Assignment failed');
@@ -119,12 +143,13 @@ const AssignAdsPage: React.FC = () => {
         </Link>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="bg-white rounded-lg shadow overflow-x-auto no-scrollbar touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table className="min-w-[900px] w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Owner</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assign To User</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
@@ -132,7 +157,7 @@ const AssignAdsPage: React.FC = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {shops.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-5 text-center text-gray-500">
+                <td colSpan={5} className="px-6 py-5 text-center text-gray-500">
                   No shops found.
                 </td>
               </tr>
@@ -144,6 +169,15 @@ const AssignAdsPage: React.FC = () => {
                     <div className="text-xs text-gray-400">ID: {shop.id}</div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {owners[shop.id]?.owner_username ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                        {owners[shop.id].owner_username}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Unassigned</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     <select
                       value={selectedOwner[shop.id] || ''}
