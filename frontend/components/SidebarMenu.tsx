@@ -5,9 +5,10 @@ type SidebarMenuProps = {
   isOpen: boolean;
   onClose: () => void;
   onAuthChanged?: () => void;
+  isAdmin?: boolean;
 };
 
-const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChanged }) => {
+const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChanged, isAdmin = false }) => {
   if (!isOpen) return null;
 
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
@@ -49,14 +50,28 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({ isOpen, onClose, onAuthChange
                 My Ads
               </Link>
             </li>
+            {isAdmin && (
+              <>
+                <li className="mb-2">
+                  <Link to="/admin/stats" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
+                    Stats Overview
+                  </Link>
+                </li>
+                <li className="mb-2">
+                  <Link to="/admin/assign-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
+                    Assign Ads
+                  </Link>
+                </li>
+              </>
+            )}
             <li className="mb-2">
-              <Link to="/admin/stats" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                Stats Overview
+              <Link to="/about" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
+                About Us
               </Link>
             </li>
             <li className="mb-2">
-              <Link to="/admin/assign-ads" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
-                Assign Ads
+              <Link to="/terms" onClick={onClose} className="block text-lg font-medium text-gray-800 hover:text-gray-600">
+                Terms & Conditions
               </Link>
             </li>
           </ul>

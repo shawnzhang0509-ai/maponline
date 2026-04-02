@@ -4,6 +4,7 @@ import HamburgerButton from './components/HamburgerButton';
 import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
+import AboutPage from './pages/AboutPage';
 import Header from './components/Header';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
 import ContactModal from './components/ContactModal'; // 引入联系弹窗
@@ -21,6 +22,7 @@ import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
 import AssignAdsPage from './pages/AssignAdsPage';
+import BadgeFilterDropdown from './components/BadgeFilterDropdown';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -57,7 +59,7 @@ const HomePage: React.FC = () => {
   const [showAgeModal, setShowAgeModal] = useState(false);
 
 
-  const [showAdmin, setShowAdmin] = useState(false);
+  const [showCreateAd, setShowCreateAd] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -70,7 +72,7 @@ const HomePage: React.FC = () => {
   const [previewShop, setPreviewShop] = useState<Shop | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -140,10 +142,12 @@ const HomePage: React.FC = () => {
       });
     }
 
-    // 2. 执行标签过滤
-    if (selectedTag) {
-      const targetTag = selectedTag.toLowerCase();
-      result = result.filter(shop => getShopTags(shop).some(tag => tag.toLowerCase() === targetTag));
+    // 2. 执行标签过滤（多选：匹配任意一个）
+    if (selectedTags.length > 0) {
+      const targetTags = selectedTags.map((t) => t.toLowerCase());
+      result = result.filter((shop) =>
+        getShopTags(shop).some((tag) => targetTags.includes(tag.toLowerCase()))
+      );
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
@@ -195,7 +199,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTag, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -544,22 +548,14 @@ const HomePage: React.FC = () => {
 
       {allTags.length > 0 && (
         <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-          <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar py-3 pointer-events-auto">
-            <span className="text-xs font-bold text-gray-400 mr-2 uppercase tracking-wider whitespace-nowrap">Badges:</span>
-            {selectedTag && <button onClick={() => setSelectedTag(null)} className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-gray-800 text-white text-xs font-bold rounded-full hover:bg-gray-700 transition-colors shadow-md">Clear <X size={12} /></button>}
-            {allTags.map((tag) => {
-              const lowerTag = tag.toLowerCase();
-              const config = TAG_CONFIG[lowerTag] || TAG_CONFIG['default'];
-              const displayText = config.text || (tag.charAt(0).toUpperCase() + tag.slice(1));
-              return (
-                <button key={tag} onClick={() => setSelectedTag(selectedTag === tag ? null : tag)} className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black tracking-wide rounded-full transition-all shadow-md border whitespace-nowrap hover:scale-105 ${selectedTag === tag ? 'ring-2 ring-offset-1 ring-gray-400 brightness-90' : 'hover:brightness-110'} ${config.bg}`}>
-                  {config.icon && <span className="text-sm leading-none filter drop-shadow-sm">{config.icon}</span>}
-                  <span>{displayText}</span>
-                </button>
-              );
-            })}
-          </div> 
-        </div> 
+          <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
+            <BadgeFilterDropdown
+              allTags={allTags}
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
+          </div>
+        </div>
       )}
 
       <div className="flex-1 relative overflow-hidden">
@@ -568,7 +564,7 @@ const HomePage: React.FC = () => {
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
           <button
-            onClick={() => (isLoggedIn ? setShowAdmin(true) : setShowLogin(true))}
+            onClick={() => (isLoggedIn ? setShowCreateAd(true) : setShowLogin(true))}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
             title={isLoggedIn ? 'Add your ad' : 'Login to add ad'}
           >
@@ -671,7 +667,7 @@ const HomePage: React.FC = () => {
                     })
                   ) : (
                     <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                      {selectedTag ? `No shops found with tag "${selectedTag}"` : "No shops found nearby."}
+                      {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
                     </div>
                   )}
                 </div>
@@ -701,7 +697,7 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {showAdmin && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowAdmin(false)} />}
+      {showCreateAd && <AdminPanel onAddShop={handleAddShop} onClose={() => setShowCreateAd(false)} />}
       {showLogin && <LoginPanel onLoginSuccess={(payload) => { handleLoginSuccess(payload); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
       {previewShop && <ImagePreviewModal shop={previewShop} index={previewIndex} onChangeIndex={setPreviewIndex} onClose={() => setPreviewShop(null)} />}
       
@@ -729,6 +725,8 @@ const App: React.FC = () => {
       <Routes>
         {/* 首页路由 */}
         <Route path="/" element={<HomePage key={`home-${authVersion}`} />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         
         {/* ✅ 新增：店铺详情页路由 (关键修复) */}
         {/* :slug 是一个动态参数，可以匹配 relax, massage, abc 等任意值 */}
@@ -746,6 +744,7 @@ const App: React.FC = () => {
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
         onAuthChanged={() => setAuthVersion((prev) => prev + 1)}
+        isAdmin={isAdmin}
       />
     </BrowserRouter>
   );

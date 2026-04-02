@@ -2,14 +2,10 @@ import React from 'react';
 
 interface HeaderProps {
   isSearching?: boolean;
-  isLoggedIn: boolean;
-  username?: string | null;
-  onLogin: () => void;
-  onLogout: () => void;
   onSearch?: (keyword: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isSearching, isLoggedIn, username, onLogin, onLogout, onSearch }) => {
+const Header: React.FC<HeaderProps> = ({ isSearching, onSearch }) => {
   const [keyword, setKeyword] = React.useState('');
 
   const handleSearch = () => {
@@ -27,12 +23,11 @@ const Header: React.FC<HeaderProps> = ({ isSearching, isLoggedIn, username, onLo
   };
 
   return (
-    <header className="w-full flex flex-col sm:flex-row justify-between items-center px-6 py-4 bg-white shadow-md z-50 sticky top-0 gap-2">
-      <div className="flex items-center gap-4 w-full sm:w-auto">
-        <h1 className="text-xl font-bold text-gray-900">Massage Shops NZ</h1>
+    <header className="w-full flex items-center gap-2 sm:gap-4 px-4 sm:px-6 py-4 bg-white shadow-md z-50 sticky top-0">
+      <h1 className="text-xl font-bold text-gray-900 leading-tight min-w-[130px]">Massage Shops NZ</h1>
 
-        {/* 搜索框 + 图标 + 清空按钮 */}
-        <div className="relative w-full sm:w-64">
+      <div className="flex-1 min-w-0 mr-[68px] sm:mr-0">
+        <div className="relative w-full">
           <input
             type="text"
             placeholder="Search by shop name..."
@@ -41,8 +36,6 @@ const Header: React.FC<HeaderProps> = ({ isSearching, isLoggedIn, username, onLo
             onKeyDown={handleKeyPress}
             className="border border-gray-300 rounded-xl px-10 py-1 w-full focus:outline-none focus:ring-2 focus:ring-rose-400"
           />
-
-          {/* 搜索按钮图标 */}
           <button
             onClick={handleSearch}
             className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 flex items-center justify-center w-5 h-5"
@@ -54,8 +47,6 @@ const Header: React.FC<HeaderProps> = ({ isSearching, isLoggedIn, username, onLo
               '🔍'
             )}
           </button>
-
-          {/* 清空按钮 */}
           {keyword && (
             <button
               onClick={handleClear}
@@ -66,22 +57,6 @@ const Header: React.FC<HeaderProps> = ({ isSearching, isLoggedIn, username, onLo
           )}
         </div>
       </div>
-
-      {!isLoggedIn ? (
-        <button
-          onClick={onLogin}
-          className="bg-rose-500 text-white font-semibold px-4 py-2 rounded-xl shadow hover:bg-rose-600 transition-colors"
-        >
-          Login
-        </button>
-      ) : (
-        <button
-          onClick={onLogout}
-          className="bg-rose-500 text-white px-4 py-2 rounded-xl shadow hover:bg-rose-600 transition-colors"
-        >
-          Logout
-        </button>
-      )}
     </header>
   );
 };
