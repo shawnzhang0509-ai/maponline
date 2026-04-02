@@ -56,12 +56,12 @@ const AdminStats: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        📊 全店铺逐日点击统计总览
+        📊 Daily Click Summary (All Shops)
       </h1>
 
       <div className="bg-white rounded-lg border p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">开始日期</label>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
           <input
             type="date"
             value={startDate}
@@ -70,7 +70,7 @@ const AdminStats: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">结束日期</label>
+          <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
           <input
             type="date"
             value={endDate}
@@ -86,30 +86,30 @@ const AdminStats: React.FC = () => {
             }}
             className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded px-3 py-2 text-sm font-medium"
           >
-            清空日期筛选
+            Clear Date Filters
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
-          <p className="text-blue-600 text-sm font-bold uppercase">总 SMS</p>
+          <p className="text-blue-600 text-sm font-bold uppercase">Total SMS</p>
           <p className="text-3xl font-bold text-blue-800">{totalSms}</p>
         </div>
         <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
-          <p className="text-green-600 text-sm font-bold uppercase">总 CALL</p>
+          <p className="text-green-600 text-sm font-bold uppercase">Total CALL</p>
           <p className="text-3xl font-bold text-green-800">{totalCall}</p>
         </div>
         <div className="bg-purple-50 p-4 rounded-lg text-center border border-purple-200">
-          <p className="text-purple-600 text-sm font-bold uppercase">总点击</p>
+          <p className="text-purple-600 text-sm font-bold uppercase">Total Clicks</p>
           <p className="text-3xl font-bold text-purple-800">{grandTotal}</p>
         </div>
         <div className="bg-amber-50 p-4 rounded-lg text-center border border-amber-200">
-          <p className="text-amber-700 text-sm font-bold uppercase">店铺数</p>
+          <p className="text-amber-700 text-sm font-bold uppercase">Shops</p>
           <p className="text-3xl font-bold text-amber-800">{uniqueShopCount}</p>
         </div>
         <div className="bg-slate-50 p-4 rounded-lg text-center border border-slate-200">
-          <p className="text-slate-600 text-sm font-bold uppercase">日期数</p>
+          <p className="text-slate-600 text-sm font-bold uppercase">Days</p>
           <p className="text-3xl font-bold text-slate-800">{uniqueDateCount}</p>
         </div>
       </div>
@@ -118,18 +118,18 @@ const AdminStats: React.FC = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">店铺</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">短信 (SMS)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">电话 (Call)</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总点击</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMS</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Call</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {stats.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">暂无数据</td>
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No data</td>
               </tr>
             ) : (
               stats.map((item) => (
@@ -151,7 +151,7 @@ const AdminStats: React.FC = () => {
                     {item.total}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-900">
-                    <Link to={`/stats/${item.shop_id}`}>查看详情 →</Link>
+                    <Link to={`/stats/${item.shop_id}`}>View details →</Link>
                   </td>
                 </tr>
               ))

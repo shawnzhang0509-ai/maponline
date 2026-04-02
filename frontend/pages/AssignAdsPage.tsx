@@ -1,0 +1,182 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Shop } from '../types';
+
+interface UserItem {
+  id: number;
+  username: string;
+  is_admin: boolean;
+}
+
+const AssignAdsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+  const token = localStorage.getItem('auth_token') || '';
+  const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [selectedOwner, setSelectedOwner] = useState<Record<number, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [savingShopId, setSavingShopId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isLoggedIn || !token || !isAdmin) {
+      navigate('/');
+      return;
+    }
+
+    const loadData = async () => {
+      try {
+        const [usersRes, shopsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/shop/admin/users`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}/shop/shops`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        if (!usersRes.ok) throw new Error('Failed to load users');
+        if (!shopsRes.ok) throw new Error('Failed to load shops');
+
+        const usersData: UserItem[] = await usersRes.json();
+        const shopsData: Shop[] = await shopsRes.json();
+
+        setUsers(usersData);
+        setShops(shopsData);
+
+        const initialSelected: Record<number, string> = {};
+        for (const shop of shopsData) {
+          initialSelected[shop.id] = '';
+        }
+        setSelectedOwner(initialSelected);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [API_BASE_URL, isAdmin, isLoggedIn, navigate, token]);
+
+  const nonAdminUsers = useMemo(
+    () => users.filter((u) => !u.is_admin),
+    [users]
+  );
+
+  const handleAssign = async (shopId: number) => {
+    const username = (selectedOwner[shopId] || '').trim();
+    if (!username) {
+      alert('Please choose a user first.');
+      return;
+    }
+
+    try {
+      setSavingShopId(shopId);
+      const res = await fetch(`${API_BASE_URL}/shop/admin/transfer-owner`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ shop_id: shopId, username }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok || payload.error) {
+        throw new Error(payload.error || 'Failed to assign owner');
+      }
+
+      alert(`Assigned shop #${shopId} to ${username}.`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Assignment failed');
+    } finally {
+      setSavingShopId(null);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading assignment data...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">🛠 Assign Ads</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Admin tool: assign ad edit ownership to a user. Admin always keeps full edit access.
+          </p>
+        </div>
+        <Link
+          to="/"
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700"
+        >
+          Back to Home
+        </Link>
+      </div>
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assign To User</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {shops.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-6 py-5 text-center text-gray-500">
+                  No shops found.
+                </td>
+              </tr>
+            ) : (
+              shops.map((shop) => (
+                <tr key={shop.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {shop.name}
+                    <div className="text-xs text-gray-400">ID: {shop.id}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <select
+                      value={selectedOwner[shop.id] || ''}
+                      onChange={(e) =>
+                        setSelectedOwner((prev) => ({ ...prev, [shop.id]: e.target.value }))
+                      }
+                      className="border rounded px-2 py-1 text-sm bg-white"
+                    >
+                      <option value="">Select user...</option>
+                      {nonAdminUsers.map((u) => (
+                        <option key={u.id} value={u.username}>
+                          {u.username}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => handleAssign(shop.id)}
+                      disabled={savingShopId === shop.id}
+                      className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-60"
+                    >
+                      {savingShopId === shop.id ? 'Assigning...' : 'Assign'}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default AssignAdsPage;
