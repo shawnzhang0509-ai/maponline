@@ -27,6 +27,23 @@ import BadgeFilterDropdown from './components/BadgeFilterDropdown';
 const STORAGE_KEY = 'nz_massage_shops_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+/** Align list payload with UI: picture URLs, and badge_text fallback from new_girls_last_15_days */
+function normalizeShopFromApi(shop: any, apiBase: string): Shop {
+  const pictures =
+    shop.pictures?.map((pic: any) => ({
+      ...pic,
+      url: pic.url && pic.url.startsWith('/files/') ? `${apiBase}${pic.url}` : pic.url,
+    })) || [];
+  const rawBadge = shop.badge_text;
+  const hasBadge = rawBadge != null && String(rawBadge).trim() !== '';
+  const badge_text = hasBadge
+    ? String(rawBadge).trim()
+    : shop.new_girls_last_15_days
+      ? 'New'
+      : '';
+  return { ...shop, pictures, badge_text };
+}
+
 const COLLAPSED_HEIGHT = 80; 
 const EXPANDED_HEIGHT = 380; 
 const CLICK_THRESHOLD = 5; 
@@ -40,7 +57,15 @@ const HomePage: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>(() => {
     if (typeof window === 'undefined') return [];
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved) as any[];
+      return Array.isArray(parsed)
+        ? parsed.map((s) => normalizeShopFromApi(s, API_BASE_URL))
+        : [];
+    } catch {
+      return [];
+    }
   });
 
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -119,11 +144,17 @@ const HomePage: React.FC = () => {
 
   const getShopTags = (shop: any): string[] => {
     const text = shop.badge_text;
-    if (!text || typeof text !== 'string' || text.trim() === '') return [];
-    let cleanText = text.trim();
-    if (cleanText.startsWith('🆕')) cleanText = cleanText.replace('🆕', '').trim();
-    if (cleanText.includes(',')) return cleanText.split(',').map(t => t.trim()).filter(Boolean);
-    return [cleanText];
+    const fromText: string[] = [];
+    if (text && typeof text === 'string' && text.trim() !== '') {
+      let cleanText = text.trim();
+      if (cleanText.startsWith('🆕')) cleanText = cleanText.replace('🆕', '').trim();
+      if (cleanText.includes(',')) fromText.push(...cleanText.split(',').map(t => t.trim()).filter(Boolean));
+      else fromText.push(cleanText);
+    }
+    if (shop.new_girls_last_15_days && !fromText.some((t) => t.toLowerCase() === 'new')) {
+      fromText.push('New');
+    }
+    return fromText;
   };
 
   const allTags = useMemo(() => {
@@ -153,8 +184,9 @@ const HomePage: React.FC = () => {
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
     // 定义优先级辅助函数
     const getPriority = (shop: Shop) => {
-      if (!shop.badge_text) return 0;
-      const tags = shop.badge_text.toLowerCase().split(',').map(t => t.trim());
+      const badgeStr = (shop.badge_text && shop.badge_text.trim()) || (shop.new_girls_last_15_days ? 'New' : '');
+      if (!badgeStr) return 0;
+      const tags = badgeStr.toLowerCase().split(',').map(t => t.trim());
       if (tags.includes('diamond')) return 3; // 最高优先级
       if (tags.includes('vip')) return 2;      // 次高优先级
       return 0;                                // 普通店铺
@@ -396,14 +428,8 @@ const HomePage: React.FC = () => {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      let data = await response.json();
-      const fixedData = data.map((shop: any) => ({
-        ...shop,
-        pictures: shop.pictures?.map((pic: any) => ({
-          ...pic,
-          url: pic.url && pic.url.startsWith('/files/') ? `${API_BASE_URL}${pic.url}` : pic.url 
-        })) || []
-      }));
+      const data = await response.json();
+      const fixedData = data.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL));
       setShops(fixedData);
     } catch (error) {
       console.error('❌ Load failed:', error);
@@ -422,7 +448,8 @@ const HomePage: React.FC = () => {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) throw new Error('Network response was not ok');
-      setShops(await res.json());
+      const raw = await res.json();
+      setShops(raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL)));
     } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
   };
@@ -505,7 +532,7 @@ const HomePage: React.FC = () => {
 
   const handleAddShop = (newShop: Shop) => {
     if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) { alert(`Shop "${newShop.name}" already exists`); return; }
-    setShops([...shops, newShop]); setShowAdmin(false);
+    setShops([...shops, newShop]); setShowCreateAd(false);
     const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     navigate(`/shop/${slug}`);
   };
@@ -546,17 +573,15 @@ const HomePage: React.FC = () => {
       {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
       {/* 👆 插入结束 👆 */}
 
-      {allTags.length > 0 && (
-        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-          <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
-            <BadgeFilterDropdown
-              allTags={allTags}
-              selectedTags={selectedTags}
-              onChange={setSelectedTags}
-            />
-          </div>
+      <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
+          <BadgeFilterDropdown
+            allTags={allTags}
+            selectedTags={selectedTags}
+            onChange={setSelectedTags}
+          />
         </div>
-      )}
+      </div>
 
       <div className="flex-1 relative overflow-hidden">
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />

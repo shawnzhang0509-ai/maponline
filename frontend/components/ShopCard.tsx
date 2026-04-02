@@ -571,10 +571,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
         </div>
       )}
 
-      {/* 标签层 */}
-      {shop.badge_text && shop.badge_text.trim() !== '' && (
+      {/* 标签层（与首页一致：仅 new_girls 时显示 New） */}
+      {(() => {
+        const raw = shop.badge_text?.trim() || '';
+        const badgeSource = raw || (shop.new_girls_last_15_days ? 'New' : '');
+        if (!badgeSource) return null;
+        return (
         <div className="absolute top-3 left-3 z-40 flex flex-wrap gap-2 max-w-[85%] pointer-events-none">
-          {shop.badge_text.split(',').map((tagStr, tIdx) => {
+          {badgeSource.split(',').map((tagStr, tIdx) => {
             const rawTag = tagStr.trim();
             if (!rawTag) return null;
             const lowerTag = rawTag.toLowerCase();
@@ -592,7 +596,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
             );
           })}
         </div>
-      )}
+        );
+      })()}
 
       {/* 图片区域 */}
       <div
