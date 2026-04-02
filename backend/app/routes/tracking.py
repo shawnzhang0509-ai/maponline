@@ -3,9 +3,11 @@ from collections import defaultdict
 from flask import Blueprint, request, jsonify
 from app.models.click_stat import ClickStat
 from app.models.shop import Shop
+from app.models.shop_owner import ShopOwner
 from app import db
 from datetime import datetime
 from sqlalchemy import func, cast, String
+from app.utils.auth import get_auth_user
 
 tracking_bp = Blueprint('tracking', __name__)
 
@@ -58,6 +60,19 @@ def _parse_date_param(value, field_name):
     except ValueError:
         raise ValueError(f"Invalid {field_name}, expected YYYY-MM-DD")
 
+
+def _is_admin_user(user):
+    return bool(user and user.is_admin)
+
+
+def _can_view_shop_stats(user, shop_id):
+    if not user:
+        return False
+    if _is_admin_user(user):
+        return True
+    owner = ShopOwner.query.filter_by(shop_id=shop_id, user_id=user.id).first()
+    return owner is not None
+
 # ==========================================
 # 1. 写入接口 (保持不变)
 # ==========================================
@@ -99,9 +114,12 @@ def track_action():
 @tracking_bp.route('/stats/<shop_id>', methods=['GET'])
 def get_stats(shop_id):
     try:
+        auth_user = get_auth_user(request)
         normalized_shop_id = _normalize_shop_id(shop_id)
         if normalized_shop_id is None:
             return jsonify({"error": "Invalid shop_id"}), 400
+        if not _can_view_shop_stats(auth_user, normalized_shop_id):
+            return jsonify({"error": "Unauthorized"}), 401
 
         # Use cast(..., String) so query works whether DB column is int or text.
         candidates = _shop_id_candidates(normalized_shop_id)
@@ -194,9 +212,12 @@ def get_shop_daily_stats(shop_id):
     单个店铺按天统计：返回每天 sms/call/total
     """
     try:
+        auth_user = get_auth_user(request)
         normalized_shop_id = _normalize_shop_id(shop_id)
         if normalized_shop_id is None:
             return jsonify({"error": "Invalid shop_id"}), 400
+        if not _can_view_shop_stats(auth_user, normalized_shop_id):
+            return jsonify({"error": "Unauthorized"}), 401
 
         start_date = _parse_date_param(request.args.get("start_date"), "start_date")
         end_date = _parse_date_param(request.args.get("end_date"), "end_date")

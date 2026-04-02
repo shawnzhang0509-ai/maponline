@@ -1,22 +1,16 @@
 from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app.services.shop_service import ShopService
-from app.models.user import User
 from app.models.shop_owner import ShopOwner
 from app.models.shop import Shop
+from app.utils.auth import get_auth_user
 
 shop_bp = Blueprint('shop', __name__)
 service = ShopService()
 
 
 def _require_auth_user():
-    token = request.headers.get('Authorization', '')
-    if not token.startswith('Bearer '):
-        return None
-    token = token.replace('Bearer ', '', 1).strip()
-    if not token:
-        return None
-    return User.verify_access_token(token)
+    return get_auth_user(request)
 
 
 def _is_admin_user(user):

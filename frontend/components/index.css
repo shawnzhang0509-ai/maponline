@@ -32,6 +32,13 @@
   scrollbar-width: none;
 }
 
+/* Horizontal scroll areas on mobile should feel native/smooth */
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 /* 文本超过两行显示省略号 */
 .line-clamp-2 {
   display: -webkit-box;
