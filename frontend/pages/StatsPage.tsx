@@ -9,15 +9,14 @@ interface StatsData {
 }
 
 const ShopStats = () => {
-  // 状态管理
-  const [shopId] = useState('shop_123'); // 👈 这里写死测试ID，或者从路由 useParams() 获取
+  // State
+  const [shopId] = useState('shop_123');
   const [stats, setStats] = useState<StatsData>({ sms: 0, call: 0, total: 0 });
   const [loading, setLoading] = useState(true);
 
-  // 获取数据的函数
+  // Fetch stats
   const fetchStats = async () => {
     try {
-      // 👇 调用刚才后端写的 /tracking/stats/<shop_id> 接口
       const response = await fetch(`/tracking/stats/${shopId}`);
       
       if (!response.ok) {
@@ -27,41 +26,41 @@ const ShopStats = () => {
       const data = await response.json();
       setStats(data);
     } catch (error) {
-      console.error('获取统计数据失败:', error);
+      console.error('Failed to fetch stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // 组件加载时自动获取一次数据
+  // Load once on mount
   useEffect(() => {
     fetchStats();
   }, [shopId]);
 
   if (loading) {
-    return <div className="text-center text-gray-500">正在加载数据库数据...</div>;
+    return <div className="text-center text-gray-500">Loading database stats...</div>;
   }
 
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6 flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">
-          店铺统计 ({shopId})
+          Shop Stats ({shopId})
         </h2>
         <button 
           onClick={fetchStats}
           className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-sm"
         >
-          刷新数据
+          Refresh
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* SMS 卡片 */}
+        {/* SMS card */}
         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium uppercase">短信点击 (SMS)</p>
+              <p className="text-gray-500 text-sm font-medium uppercase">SMS Clicks</p>
               <p className="text-3xl font-bold text-gray-800 mt-1">{stats.sms}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
@@ -72,11 +71,11 @@ const ShopStats = () => {
           </div>
         </div>
 
-        {/* Call 卡片 */}
+        {/* Call card */}
         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium uppercase">电话点击 (Call)</p>
+              <p className="text-gray-500 text-sm font-medium uppercase">Call Clicks</p>
               <p className="text-3xl font-bold text-gray-800 mt-1">{stats.call}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
@@ -87,11 +86,11 @@ const ShopStats = () => {
           </div>
         </div>
 
-        {/* 总数卡片 */}
+        {/* Total card */}
         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm font-medium uppercase">总点击数</p>
+              <p className="text-gray-500 text-sm font-medium uppercase">Total Clicks</p>
               <p className="text-3xl font-bold text-gray-800 mt-1">{stats.total}</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
@@ -104,7 +103,7 @@ const ShopStats = () => {
       </div>
       
       <div className="mt-6 text-center text-sm text-gray-400">
-        数据来源：PostgreSQL 数据库 (永久存储)
+        Data source: PostgreSQL (persistent storage)
       </div>
     </div>
   );
