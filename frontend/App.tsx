@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
-import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
 import Header from './components/Header';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
-import ContactModal from './components/ContactModal'; // 引入联系弹窗
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
@@ -591,15 +590,17 @@ const HomePage: React.FC = () => {
       {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
       {/* 👆 插入结束 👆 */}
 
-      <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
-          <BadgeFilterDropdown
-            allTags={allTags}
-            selectedTags={selectedTags}
-            onChange={setSelectedTags}
-          />
+      {allTags.length > 0 && (
+        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+          <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
+            <BadgeFilterDropdown
+              allTags={allTags}
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 relative overflow-hidden">
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
