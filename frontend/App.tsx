@@ -13,7 +13,7 @@ import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
 import ShopDetailPage from './pages/ShopDetailPage';
 import { Shop, UserLocation } from './types';
-import { NZ_CENTER, TAG_CONFIG } from './constants';
+import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
@@ -142,17 +142,37 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const getShopTags = (shop: any): string[] => {
+  const normalizeTag = (tag: string): string => {
+    let clean = (tag || '').trim().toLowerCase();
+    if (!clean) return '';
+    clean = clean.replace(/^🆕\s*/, '');
+    clean = clean.replace(/\s+/g, ' ');
+    clean = clean
+      .replace(/^[^a-z0-9\u4e00-\u9fa5]+/gi, '')
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+$/gi, '')
+      .trim();
+
+    const aliasMap: Record<string, string> = {
+      'new girl': 'new',
+      'new girls': 'new',
+      'vip seller': 'vip',
+      'diamond seller': 'diamond',
+      'adultdollseller': 'adult doll seller',
+    };
+    return aliasMap[clean] || clean;
+  };
+
+  const getShopTags = (shop: Shop): string[] => {
     const text = shop.badge_text;
-    const fromText: string[] = [];
-    if (text && typeof text === 'string' && text.trim() !== '') {
-      let cleanText = text.trim();
-      if (cleanText.startsWith('🆕')) cleanText = cleanText.replace('🆕', '').trim();
-      if (cleanText.includes(',')) fromText.push(...cleanText.split(',').map(t => t.trim()).filter(Boolean));
-      else fromText.push(cleanText);
-    }
-    if (shop.new_girls_last_15_days && !fromText.some((t) => t.toLowerCase() === 'new')) {
-      fromText.push('New');
+    const fromText =
+      text && typeof text === 'string' && text.trim() !== ''
+        ? text
+            .split(/[,\n，|/]+/)
+            .map((t) => normalizeTag(t))
+            .filter(Boolean)
+        : [];
+    if (shop.new_girls_last_15_days && !fromText.includes('new')) {
+      fromText.push('new');
     }
     return fromText;
   };
@@ -175,18 +195,16 @@ const HomePage: React.FC = () => {
 
     // 2. 执行标签过滤（多选：匹配任意一个）
     if (selectedTags.length > 0) {
-      const targetTags = selectedTags.map((t) => t.toLowerCase());
+      const targetTags = new Set(selectedTags.map((t) => normalizeTag(t)));
       result = result.filter((shop) =>
-        getShopTags(shop).some((tag) => targetTags.includes(tag.toLowerCase()))
+        getShopTags(shop).some((tag) => targetTags.has(tag))
       );
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
     // 定义优先级辅助函数
     const getPriority = (shop: Shop) => {
-      const badgeStr = (shop.badge_text && shop.badge_text.trim()) || (shop.new_girls_last_15_days ? 'New' : '');
-      if (!badgeStr) return 0;
-      const tags = badgeStr.toLowerCase().split(',').map(t => t.trim());
+      const tags = getShopTags(shop);
       if (tags.includes('diamond')) return 3; // 最高优先级
       if (tags.includes('vip')) return 2;      // 次高优先级
       return 0;                                // 普通店铺
