@@ -48,7 +48,10 @@ const ShopDetailPage: React.FC = () => {
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/shops`);
+        const token = localStorage.getItem('auth_token') || '';
+        const res = await fetch(`${API_BASE_URL}/shops`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         const data = await res.json();
         
         const found = data.find((s: any) => {

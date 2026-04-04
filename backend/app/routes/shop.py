@@ -3,6 +3,7 @@ from app import db
 from app.services.shop_service import ShopService
 from app.models.shop_owner import ShopOwner
 from app.models.shop import Shop
+from app.models.user import User
 from app.utils.auth import get_auth_user
 
 shop_bp = Blueprint('shop', __name__)
@@ -229,6 +230,28 @@ def list_users_for_admin():
 
     users = db.session.query(User).order_by(User.username.asc()).all()
     return jsonify([u.to_dict() for u in users])
+
+
+@shop_bp.route('/admin/owners', methods=['GET'])
+@shop_bp.route('/shop/admin/owners', methods=['GET'])
+def list_shop_owners_for_admin():
+    auth_user = _require_auth_user()
+    if not auth_user or not _is_admin_user(auth_user):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    rows = (
+        db.session.query(ShopOwner.shop_id, ShopOwner.user_id, User.username)
+        .join(User, User.id == ShopOwner.user_id)
+        .all()
+    )
+    return jsonify([
+        {
+            "shop_id": int(row.shop_id),
+            "owner_user_id": int(row.user_id),
+            "owner_username": row.username,
+        }
+        for row in rows
+    ])
 
 
 @shop_bp.route('/admin/transfer-owner', methods=['POST'])
