@@ -13,7 +13,7 @@ import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
 import ShopDetailPage from './pages/ShopDetailPage';
 import { Shop, UserLocation } from './types';
-import { NZ_CENTER, TAG_CONFIG } from './constants';
+import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
@@ -117,13 +117,33 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const getShopTags = (shop: any): string[] => {
+  const normalizeTag = (tag: string): string => {
+    let clean = (tag || '').trim().toLowerCase();
+    if (!clean) return '';
+    clean = clean.replace(/^🆕\s*/, '');
+    clean = clean.replace(/\s+/g, ' ');
+    clean = clean
+      .replace(/^[^a-z0-9\u4e00-\u9fa5]+/gi, '')
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+$/gi, '')
+      .trim();
+
+    const aliasMap: Record<string, string> = {
+      'new girl': 'new',
+      'new girls': 'new',
+      'vip seller': 'vip',
+      'diamond seller': 'diamond',
+      'adultdollseller': 'adult doll seller',
+    };
+    return aliasMap[clean] || clean;
+  };
+
+  const getShopTags = (shop: Shop): string[] => {
     const text = shop.badge_text;
     if (!text || typeof text !== 'string' || text.trim() === '') return [];
-    let cleanText = text.trim();
-    if (cleanText.startsWith('🆕')) cleanText = cleanText.replace('🆕', '').trim();
-    if (cleanText.includes(',')) return cleanText.split(',').map(t => t.trim()).filter(Boolean);
-    return [cleanText];
+    return text
+      .split(/[,\n，|/]+/)
+      .map((t) => normalizeTag(t))
+      .filter(Boolean);
   };
 
   const allTags = useMemo(() => {
@@ -144,17 +164,16 @@ const HomePage: React.FC = () => {
 
     // 2. 执行标签过滤（多选：匹配任意一个）
     if (selectedTags.length > 0) {
-      const targetTags = selectedTags.map((t) => t.toLowerCase());
+      const targetTags = new Set(selectedTags.map((t) => normalizeTag(t)));
       result = result.filter((shop) =>
-        getShopTags(shop).some((tag) => targetTags.includes(tag.toLowerCase()))
+        getShopTags(shop).some((tag) => targetTags.has(tag))
       );
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
     // 定义优先级辅助函数
     const getPriority = (shop: Shop) => {
-      if (!shop.badge_text) return 0;
-      const tags = shop.badge_text.toLowerCase().split(',').map(t => t.trim());
+      const tags = getShopTags(shop);
       if (tags.includes('diamond')) return 3; // 最高优先级
       if (tags.includes('vip')) return 2;      // 次高优先级
       return 0;                                // 普通店铺
@@ -505,7 +524,7 @@ const HomePage: React.FC = () => {
 
   const handleAddShop = (newShop: Shop) => {
     if (shops.some(s => s.name.trim().toLowerCase() === newShop.name.trim().toLowerCase())) { alert(`Shop "${newShop.name}" already exists`); return; }
-    setShops([...shops, newShop]); setShowAdmin(false);
+    setShops([...shops, newShop]); setShowCreateAd(false);
     const slug = newShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     navigate(`/shop/${slug}`);
   };

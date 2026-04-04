@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
 import { getSMSLink } from '../utils';
 import { dmsToDecimal } from '../utils/geoUtils';
+import { getTagStyle } from '../constants';
 
 interface ShopCardProps {
   shop: Shop;
@@ -17,24 +18,6 @@ interface ShopCardProps {
   isAdmin?: boolean;
   canDelete?: boolean;
 }
-
-// ==========================================
-// 🎨 智能标签配置表
-// ==========================================
-const TAG_CONFIG: Record<string, { icon: string; bg: string; text?: string }> = {
-  'diamond': { icon: '💎', bg: 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-blue-300', text: 'Diamond' },
-  'vip':     { icon: '👑', bg: 'bg-gradient-to-r from-amber-300 to-amber-500 text-amber-900 shadow-amber-200', text: 'VIP' },
-  'new':     { icon: '🆕', bg: 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-300', text: 'New' },
-  'hot':     { icon: '🔥', bg: 'bg-gradient-to-r from-orange-400 to-red-500 text-white shadow-orange-300', text: 'Hot' },
-  'fresh':   { icon: '✨', bg: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-teal-200', text: 'Fresh' },
-  'nice':    { icon: '💖', bg: 'bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-pink-200', text: 'Nice' },
-  'massage': { icon: '💆‍♀️', bg: 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white shadow-purple-200', text: 'Massage' },
-  'thai':    { icon: '🇹🇭', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Thai' },
-  'chinese': { icon: '🇨🇳', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Chinese' },
-  'japanese':{ icon: '🇯🇵', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Japanese' },
-  'korean':  { icon: '🇰🇷', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Korean' },
-  'default': { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' }
-};
 
   // ... 前面的 state 定义 ...
 
@@ -53,6 +36,18 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+    };
+  }, [isEditing]);
 
   // ✅ 关键修正：字段名与后端 shop.py 严格对应 (about_me, additional_price)
   const [editData, setEditData] = useState<ShopEdit>({
@@ -221,13 +216,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" 
-          onClick={() => {
-            setIsEditing(false);
-            setShowConfirmSave(false);
-          }}
-        />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" />
         
         <div 
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
@@ -441,7 +430,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                     const t = tag.trim();
                     if (!t) return null;
                     const lower = t.toLowerCase();
-                    const config = TAG_CONFIG[lower] || TAG_CONFIG['default'];
+                    const config = getTagStyle(lower);
                     const display = config.text || (t.charAt(0).toUpperCase() + t.slice(1));
                     
                     return (
@@ -578,7 +567,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             const rawTag = tagStr.trim();
             if (!rawTag) return null;
             const lowerTag = rawTag.toLowerCase();
-            const config = TAG_CONFIG[lowerTag] || TAG_CONFIG['default'];
+            const config = getTagStyle(lowerTag);
             const displayText = config.text || (rawTag.charAt(0).toUpperCase() + rawTag.slice(1));
 
             return (

@@ -1,17 +1,16 @@
 import React from 'react';
+import { getTagStyle } from '../constants';
 
 interface BadgeFilterDropdownProps {
   allTags: string[];
   selectedTags: string[];
-  onToggleTag: (tag: string) => void;
-  onClearAll: () => void;
+  onChange: (next: string[]) => void;
 }
 
 const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
   allTags,
   selectedTags,
-  onToggleTag,
-  onClearAll,
+  onChange,
 }) => {
   const [open, setOpen] = React.useState(false);
 
@@ -19,6 +18,14 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
     selectedTags.length === 0
       ? 'All badges'
       : `${selectedTags.length} selected`;
+
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      onChange(selectedTags.filter((t) => t !== tag));
+      return;
+    }
+    onChange([...selectedTags, tag]);
+  };
 
   return (
     <div className="relative pointer-events-auto">
@@ -38,7 +45,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
             <span className="text-xs font-semibold text-gray-600">Select badges</span>
             <button
               type="button"
-              onClick={onClearAll}
+              onClick={() => onChange([])}
               className="text-xs text-blue-600 hover:text-blue-800"
             >
               Clear
@@ -50,6 +57,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
             ) : (
               allTags.map((tag) => {
                 const checked = selectedTags.includes(tag);
+                const style = getTagStyle(tag);
                 return (
                   <label
                     key={tag}
@@ -58,11 +66,21 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => onToggleTag(tag)}
+                      onChange={() => toggleTag(tag)}
                       className="accent-rose-500"
                     />
-                    <span className={checked ? 'font-semibold text-gray-800' : 'text-gray-700'}>
-                      {tag}
+                    <span
+                      className={[
+                        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-black tracking-wide shadow-sm',
+                        style.bg
+                      ].join(' ')}
+                    >
+                      <span className="text-sm leading-none">
+                        {style.icon}
+                      </span>
+                      <span className={checked ? 'font-semibold' : ''}>
+                        {style.text || tag}
+                      </span>
                     </span>
                   </label>
                 );
