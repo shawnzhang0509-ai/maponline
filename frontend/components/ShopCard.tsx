@@ -16,6 +16,8 @@ interface ShopCardProps {
   isLoggedIn?: boolean;
   isAdmin?: boolean;
   canDelete?: boolean;
+  autoOpenEdit?: boolean;
+  onAutoEditHandled?: () => void;
 }
 
   // ... 前面的 state 定义 ...
@@ -32,6 +34,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
   isLoggedIn,
   isAdmin,
   canDelete,
+  autoOpenEdit,
+  onAutoEditHandled,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
@@ -63,6 +67,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
       document.body.style.touchAction = prevTouchAction;
     };
   }, [isEditing]);
+
+  useEffect(() => {
+    if (!autoOpenEdit || !isLoggedIn || !shop.can_edit) return;
+    setIsEditing(true);
+    onAutoEditHandled?.();
+  }, [autoOpenEdit, isLoggedIn, shop.can_edit, onAutoEditHandled]);
 
   // ✅ 关键修正：字段名与后端 shop.py 严格对应 (about_me, additional_price)
   const [editData, setEditData] = useState<ShopEdit>({

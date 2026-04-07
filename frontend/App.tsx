@@ -97,6 +97,8 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [pendingEditShopId, setPendingEditShopId] = useState<number | null>(null);
+  const handledAutoEditKeyRef = useRef<string | null>(null);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -106,6 +108,8 @@ const HomePage: React.FC = () => {
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
     const focusId = searchParams.get('focus');
+    const shouldAutoEdit = searchParams.get('edit') === '1';
+    const autoEditKey = shouldAutoEdit && focusId ? focusId : null;
     
     if (lat && lng) {
       setUserLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
@@ -116,8 +120,15 @@ const HomePage: React.FC = () => {
         if (target) {
           setSelectedShop(target);
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
+          if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
+            setPendingEditShopId(target.id);
+            handledAutoEditKeyRef.current = autoEditKey;
+          }
         }
       }
+    }
+    if (!autoEditKey) {
+      handledAutoEditKeyRef.current = null;
     }
   }, [searchParams, shops]);
 
@@ -578,6 +589,18 @@ const HomePage: React.FC = () => {
     finally { setDeletingId(null); }
   };
 
+  const handleCreateAdClick = () => {
+    if (!isLoggedIn) {
+      setShowLogin(true);
+      return;
+    }
+    if (!isAdmin) {
+      alert('Only admin can create new ads. Please contact admin to get ads assigned.');
+      return;
+    }
+    setShowCreateAd(true);
+  };
+
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(shops)); } catch (e) {} }, [shops]);
   useEffect(() => { fetchShops(); }, []);
 
@@ -608,9 +631,9 @@ const HomePage: React.FC = () => {
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
           <button
-            onClick={() => (isLoggedIn ? setShowCreateAd(true) : setShowLogin(true))}
+            onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-            title={isLoggedIn ? 'Add your ad' : 'Login to add ad'}
+            title={!isLoggedIn ? 'Login to add ad' : (isAdmin ? 'Add your ad' : 'Admin-only: assign required')}
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -673,6 +696,8 @@ const HomePage: React.FC = () => {
                       const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
                       const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                       const isSelected = selectedShop?.id === shop.id;
+                      const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
+                      const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
                       
                       return (
                         <div
@@ -700,6 +725,8 @@ const HomePage: React.FC = () => {
                             deleting={deletingId === shop.id}
                             isLoggedIn={isLoggedIn}
                             onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
+                            autoOpenEdit={shouldAutoOpenEdit}
+                            onAutoEditHandled={() => setPendingEditShopId(null)}
                           />
                           {isSelected && (
                             <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">

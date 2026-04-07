@@ -68,6 +68,8 @@ def add_shop():
     auth_user = _require_auth_user()
     if not auth_user:
         return jsonify({"error": "Unauthorized"}), 401
+    if not _is_admin_user(auth_user):
+        return jsonify({"error": "Only admin can create new ads"}), 403
 
     data = _sanitize_shop_payload_for_role(request.form.to_dict(), auth_user)
     files = request.files.getlist("pictures") 
