@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
-import { getSMSLink } from '../utils';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
 
@@ -36,6 +35,22 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+
+  const getShopSlug = () => {
+    return (shop.name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const buildSmsMessage = () => {
+    const ownerName = (shop.name || '').trim() || 'there';
+    const slug = getShopSlug();
+    const detailPath = slug ? `/shop/${slug}` : `/shop/${shop.id}`;
+    const detailUrl = `${window.location.origin}${detailPath}`;
+    return `Hi ${ownerName}, saw your ad on nzmassagemap.online, your home page is ${detailUrl}`;
+  };
 
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
@@ -113,7 +128,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     // 4. 执行真正的跳转（发短信或打电话）
     // 注意：这里必须放在 fetch 之后，且不等待 fetch 完成
     if (type === 'sms') {
-        const bodyText = encodeURIComponent('Hi, is there any availability today?');
+        const bodyText = encodeURIComponent(buildSmsMessage());
         window.location.href = `sms:${phone}?body=${bodyText}`;
     } else if (type === 'call') {
         window.location.href = `tel:${phone}`;
