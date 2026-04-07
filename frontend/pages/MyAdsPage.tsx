@@ -41,11 +41,16 @@ const MyAdsPage: React.FC = () => {
 
   const total = useMemo(() => shops.length, [shops]);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading your ads...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (loading) {
+    return <div className="min-h-screen overflow-y-auto p-8 text-center text-gray-500">Loading your ads...</div>;
+  }
+  if (error) {
+    return <div className="min-h-screen overflow-y-auto p-8 text-center text-red-500">Error: {error}</div>;
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="min-h-screen overflow-y-auto">
+      <div className="max-w-6xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">📋 My Ads</h1>
@@ -61,8 +66,8 @@ const MyAdsPage: React.FC = () => {
         </Link>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="bg-white rounded-lg shadow overflow-hidden touch-scroll-x">
+        <table className="min-w-[760px] w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
@@ -97,6 +102,7 @@ const MyAdsPage: React.FC = () => {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

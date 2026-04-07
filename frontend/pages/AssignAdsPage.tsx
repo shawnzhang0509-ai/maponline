@@ -123,11 +123,11 @@ const AssignAdsPage: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading assignment data...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500 min-h-screen overflow-y-auto">Loading assignment data...</div>;
+  if (error) return <div className="p-8 text-center text-red-500 min-h-screen overflow-y-auto">Error: {error}</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="max-w-6xl mx-auto p-6 min-h-screen overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">🛠 Assign Ads</h1>

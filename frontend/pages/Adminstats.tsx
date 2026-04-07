@@ -54,10 +54,11 @@ const AdminStats: React.FC = () => {
   const uniqueDateCount = new Set(stats.map((item) => item.date)).size;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">
-        📊 Daily Click Summary (All Shops)
-      </h1>
+    <div className="min-h-screen overflow-y-auto">
+      <div className="max-w-6xl mx-auto p-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-6">
+          📊 Daily Click Summary (All Shops)
+        </h1>
 
       <div className="bg-white rounded-lg border p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -158,6 +159,7 @@ const AdminStats: React.FC = () => {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
