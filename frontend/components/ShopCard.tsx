@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
@@ -20,15 +20,6 @@ interface ShopCardProps {
   onAutoEditHandled?: () => void;
 }
 
-const SCROLL_DEBOUNCE_MS = 150;
-const BACKDROP_TAP_MAX_MOVE_PX = 22;
-const BACKDROP_TAP_MAX_DURATION_MS = 900;
-
-function isCoarsePointer(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(pointer: coarse)').matches;
-}
-
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
   isSelected,
@@ -45,84 +36,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
-
-  /** True while user is actively scrolling (mobile); debounced clear */
-  const isScrollingRef = useRef(false);
-  const scrollDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** After any touch scroll, ignore backdrop “close” briefly (ghost taps) */
-  const ignoreBackdropCloseUntilRef = useRef(0);
-  const backdropPointerRef = useRef({ x: 0, y: 0, t: 0 });
-  const editModalPanelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isEditing || !isCoarsePointer()) return;
-
-    const markScroll = (e: TouchEvent) => {
-      const panel = editModalPanelRef.current;
-      const t = e.target;
-      if (panel && t instanceof Node && panel.contains(t)) {
-        return;
-      }
-      isScrollingRef.current = true;
-      ignoreBackdropCloseUntilRef.current = Date.now() + SCROLL_DEBOUNCE_MS + 200;
-      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
-      scrollDebounceTimerRef.current = setTimeout(() => {
-        isScrollingRef.current = false;
-        scrollDebounceTimerRef.current = null;
-      }, SCROLL_DEBOUNCE_MS);
-    };
-
-    document.addEventListener('touchmove', markScroll, { passive: true, capture: true });
-    return () => {
-      document.removeEventListener('touchmove', markScroll, true);
-      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
-    };
-  }, [isEditing]);
-
-  const closeEditor = useCallback(() => {
-    setIsEditing(false);
-    setShowConfirmSave(false);
-  }, []);
-
-  const tryBackdropClose = useCallback(
-    (source: 'click' | 'touchend') => {
-      if (showConfirmSave) {
-        setShowConfirmSave(false);
-        return;
-      }
-      if (isCoarsePointer()) {
-        if (source === 'click') return;
-        if (isScrollingRef.current || Date.now() < ignoreBackdropCloseUntilRef.current) return;
-        const t = backdropPointerRef.current;
-        if (!t.t) return;
-        const elapsed = Date.now() - t.t;
-        if (elapsed > BACKDROP_TAP_MAX_DURATION_MS) return;
-        closeEditor();
-        return;
-      }
-      closeEditor();
-    },
-    [closeEditor, showConfirmSave]
-  );
-
-  const handleBackdropPointerDown = (e: React.PointerEvent) => {
-    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-    backdropPointerRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-  };
-
-  const handleBackdropPointerUp = (e: React.PointerEvent) => {
-    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-    const start = backdropPointerRef.current;
-    if (!start.t) return;
-    const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-    backdropPointerRef.current = { x: 0, y: 0, t: 0 };
-    if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
-    tryBackdropClose('touchend');
-  };
-
-  const handleBackdropClick = () => {
-    tryBackdropClose('click');
-  };
 
   const getShopSlug = () => {
     return (shop.name || '')
@@ -324,15 +237,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
+        {/* No tap-to-dismiss: fast scroll often lands on backdrop and was closing the editor */}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" aria-hidden />
+
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]"
-          onClick={handleBackdropClick}
-          onPointerDownCapture={handleBackdropPointerDown}
-          onPointerUpCapture={handleBackdropPointerUp}
-        />
-        
-        <div
-          ref={editModalPanelRef}
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
           style={{
             top: '50%',
@@ -593,21 +501,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
               className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
                 e.stopPropagation();
-                if (isCoarsePointer()) return;
                 setShowConfirmSave(false);
-              }}
-              onPointerDownCapture={handleBackdropPointerDown}
-              onPointerUpCapture={(e) => {
-                e.stopPropagation();
-                if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-                const start = backdropPointerRef.current;
-                if (!start.t) return;
-                const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-                backdropPointerRef.current = { x: 0, y: 0, t: 0 };
-                if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
-                if (!isScrollingRef.current && Date.now() >= ignoreBackdropCloseUntilRef.current) {
-                  setShowConfirmSave(false);
-                }
               }}
             />
             <div 
