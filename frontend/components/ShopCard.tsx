@@ -41,7 +41,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const blockActionUntilRef = useRef(0);
 
   const SCROLL_DISTANCE_THRESHOLD = 12;
-  const ACTION_BLOCK_MS_AFTER_SCROLL = 280;
+  const ACTION_BLOCK_MS_AFTER_SCROLL = 420;
 
   const getShopSlug = () => {
     return (shop.name || '')
@@ -80,9 +80,13 @@ const ShopCard: React.FC<ShopCardProps> = ({
       blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
     }
     gestureStartRef.current = null;
+    isScrollGestureRef.current = false;
   };
 
   const shouldBlockAction = () => Date.now() < blockActionUntilRef.current;
+  const markScrollInteraction = () => {
+    blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
+  };
 
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
@@ -283,6 +287,34 @@ const ShopCard: React.FC<ShopCardProps> = ({
             overflow: 'hidden',
           }}
           onClick={(e) => e.stopPropagation()} // 👈 【重要】防止点击弹窗白色区域本身触发冒泡
+          onTouchStartCapture={(e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            markGestureStart(touch.clientX, touch.clientY);
+          }}
+          onTouchMoveCapture={(e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            markGestureMove(touch.clientX, touch.clientY);
+          }}
+          onTouchEndCapture={markGestureEnd}
+          onTouchCancelCapture={markGestureEnd}
+          onPointerDownCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureStart(e.clientX, e.clientY);
+          }}
+          onPointerMoveCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureMove(e.clientX, e.clientY);
+          }}
+          onPointerUpCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureEnd();
+          }}
+          onPointerCancelCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureEnd();
+          }}
         >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
             <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
@@ -302,31 +334,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
           <div
             className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y"
             onScroll={() => {
-              blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
+              markScrollInteraction();
             }}
-            onTouchStart={(e) => {
-              const touch = e.touches[0];
-              if (!touch) return;
-              markGestureStart(touch.clientX, touch.clientY);
-            }}
-            onTouchMove={(e) => {
-              const touch = e.touches[0];
-              if (!touch) return;
-              markGestureMove(touch.clientX, touch.clientY);
-            }}
-            onTouchEnd={markGestureEnd}
-            onPointerDown={(e) => {
-              if (e.pointerType !== 'touch') return;
-              markGestureStart(e.clientX, e.clientY);
-            }}
-            onPointerMove={(e) => {
-              if (e.pointerType !== 'touch') return;
-              markGestureMove(e.clientX, e.clientY);
-            }}
-            onPointerUp={(e) => {
-              if (e.pointerType !== 'touch') return;
-              markGestureEnd();
-            }}
+            onWheel={markScrollInteraction}
           >
             {/* NAME */}
             <div>
@@ -563,6 +573,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
               className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
                 e.stopPropagation();
+                if (shouldBlockAction()) return;
                 setShowConfirmSave(false);
               }}
             />
