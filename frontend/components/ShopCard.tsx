@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
@@ -36,8 +36,14 @@ const TAG_CONFIG: Record<string, { icon: string; bg: string; text?: string }> = 
   'default': { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' }
 };
 
-  // ... 前面的 state 定义 ...
+const SCROLL_DEBOUNCE_MS = 150;
+const BACKDROP_TAP_MAX_MOVE_PX = 22;
+const BACKDROP_TAP_MAX_DURATION_MS = 900;
 
+function isCoarsePointer(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
 
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
@@ -53,6 +59,78 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+
+  /** True while user is actively scrolling (mobile); debounced clear */
+  const isScrollingRef = useRef(false);
+  const scrollDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** After any touch scroll, ignore backdrop “close” briefly (ghost taps) */
+  const ignoreBackdropCloseUntilRef = useRef(0);
+  const backdropPointerRef = useRef({ x: 0, y: 0, t: 0 });
+
+  useEffect(() => {
+    if (!isEditing || !isCoarsePointer()) return;
+
+    const markScroll = () => {
+      isScrollingRef.current = true;
+      ignoreBackdropCloseUntilRef.current = Date.now() + SCROLL_DEBOUNCE_MS + 200;
+      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
+      scrollDebounceTimerRef.current = setTimeout(() => {
+        isScrollingRef.current = false;
+        scrollDebounceTimerRef.current = null;
+      }, SCROLL_DEBOUNCE_MS);
+    };
+
+    document.addEventListener('touchmove', markScroll, { passive: true, capture: true });
+    return () => {
+      document.removeEventListener('touchmove', markScroll, true);
+      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
+    };
+  }, [isEditing]);
+
+  const closeEditor = useCallback(() => {
+    setIsEditing(false);
+    setShowConfirmSave(false);
+  }, []);
+
+  const tryBackdropClose = useCallback(
+    (source: 'click' | 'touchend') => {
+      if (showConfirmSave) {
+        setShowConfirmSave(false);
+        return;
+      }
+      if (isCoarsePointer()) {
+        if (source === 'click') return;
+        if (isScrollingRef.current || Date.now() < ignoreBackdropCloseUntilRef.current) return;
+        const t = backdropPointerRef.current;
+        if (!t.t) return;
+        const elapsed = Date.now() - t.t;
+        if (elapsed > BACKDROP_TAP_MAX_DURATION_MS) return;
+        closeEditor();
+        return;
+      }
+      closeEditor();
+    },
+    [closeEditor, showConfirmSave]
+  );
+
+  const handleBackdropPointerDown = (e: React.PointerEvent) => {
+    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
+    backdropPointerRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  };
+
+  const handleBackdropPointerUp = (e: React.PointerEvent) => {
+    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
+    const start = backdropPointerRef.current;
+    if (!start.t) return;
+    const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+    backdropPointerRef.current = { x: 0, y: 0, t: 0 };
+    if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
+    tryBackdropClose('touchend');
+  };
+
+  const handleBackdropClick = () => {
+    tryBackdropClose('click');
+  };
 
   // ✅ 关键修正：字段名与后端 shop.py 严格对应 (about_me, additional_price)
   const [editData, setEditData] = useState<ShopEdit>({
@@ -221,12 +299,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" 
-          onClick={() => {
-            setIsEditing(false);
-            setShowConfirmSave(false);
-          }}
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]"
+          onClick={handleBackdropClick}
+          onPointerDownCapture={handleBackdropPointerDown}
+          onPointerUpCapture={handleBackdropPointerUp}
         />
         
         <div 
@@ -486,12 +563,26 @@ const ShopCard: React.FC<ShopCardProps> = ({
         {/* Confirm Modal */}
         {showConfirmSave && (
           <>
-            <div 
-              className="fixed inset-0 bg-black/70 z-[100000]" 
+            <div
+              className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
                 e.stopPropagation();
+                if (isCoarsePointer()) return;
                 setShowConfirmSave(false);
-              }} 
+              }}
+              onPointerDownCapture={handleBackdropPointerDown}
+              onPointerUpCapture={(e) => {
+                e.stopPropagation();
+                if (!isCoarsePointer() || e.pointerType !== 'touch') return;
+                const start = backdropPointerRef.current;
+                if (!start.t) return;
+                const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+                backdropPointerRef.current = { x: 0, y: 0, t: 0 };
+                if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
+                if (!isScrollingRef.current && Date.now() >= ignoreBackdropCloseUntilRef.current) {
+                  setShowConfirmSave(false);
+                }
+              }}
             />
             <div 
               className="fixed z-[100001] bg-white rounded-2xl p-6 w-[90%] max-w-sm shadow-2xl"
