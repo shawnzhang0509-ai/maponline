@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
@@ -22,6 +22,8 @@ interface ShopCardProps {
   onEditModalChange?: (isOpen: boolean) => void;
 }
 
+type GestureState = 'idle' | 'tap' | 'scroll' | 'drag';
+
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
   isSelected,
@@ -39,6 +41,15 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const gestureStateRef = useRef<GestureState>('idle');
+  const gestureStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
+  const blockActionUntilRef = useRef(0);
+
+  const TAP_MOVE_THRESHOLD = 6;
+  const SCROLL_MOVE_THRESHOLD = 10;
+  const DRAG_MOVE_THRESHOLD = 14;
+  const TAP_MAX_DURATION_MS = 280;
+  const ACTION_BLOCK_MS_AFTER_NON_TAP = 900;
 
   useEffect(() => {
     if (!isEditing) return;
@@ -64,6 +75,108 @@ const ShopCard: React.FC<ShopCardProps> = ({
     return `Hi ${ownerName}, saw your ad on nzmassagemap.online, your home page is ${detailUrl}`;
   };
 
+  const setGestureState = (nextState: GestureState) => {
+    gestureStateRef.current = nextState;
+  };
+
+  const blockActions = (ms = ACTION_BLOCK_MS_AFTER_NON_TAP) => {
+    blockActionUntilRef.current = Math.max(blockActionUntilRef.current, Date.now() + ms);
+  };
+
+  const markGestureStart = (x: number, y: number) => {
+    gestureStartRef.current = { x, y, at: Date.now() };
+    setGestureState('tap');
+  };
+
+  const markGestureMove = (x: number, y: number) => {
+    const start = gestureStartRef.current;
+    if (!start) return;
+
+    const dx = x - start.x;
+    const dy = y - start.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const maxDelta = Math.max(absX, absY);
+
+    if (maxDelta <= TAP_MOVE_THRESHOLD) return;
+
+    if (absY >= SCROLL_MOVE_THRESHOLD && absY >= absX) {
+      if (gestureStateRef.current !== 'scroll') {
+        setGestureState('scroll');
+      }
+      blockActions();
+      return;
+    }
+
+    if (absX >= DRAG_MOVE_THRESHOLD && absX > absY) {
+      if (gestureStateRef.current !== 'drag') {
+        setGestureState('drag');
+      }
+      blockActions();
+      return;
+    }
+
+    if (maxDelta >= SCROLL_MOVE_THRESHOLD) {
+      setGestureState('scroll');
+      blockActions();
+    }
+  };
+
+  const markGestureEnd = () => {
+    const state = gestureStateRef.current;
+    const start = gestureStartRef.current;
+
+    if (state === 'tap' && start) {
+      const tapDuration = Date.now() - start.at;
+      if (tapDuration > TAP_MAX_DURATION_MS) {
+        blockActions(250);
+      }
+    } else if (state === 'scroll' || state === 'drag') {
+      blockActions();
+    }
+
+    gestureStartRef.current = null;
+    setGestureState('idle');
+  };
+
+  const markScrollInteraction = () => {
+    setGestureState('scroll');
+    blockActions();
+  };
+
+  const shouldBlockAction = () => {
+    const state = gestureStateRef.current;
+    if (state === 'scroll' || state === 'drag') return true;
+    return Date.now() < blockActionUntilRef.current;
+  };
+
+  const resetGestureMachine = () => {
+    gestureStartRef.current = null;
+    setGestureState('idle');
+    blockActionUntilRef.current = 0;
+  };
+
+  const openEditor = () => {
+    resetGestureMachine();
+    setShowConfirmSave(false);
+    setIsEditing(true);
+  };
+
+  const closeEditor = () => {
+    resetGestureMachine();
+    setShowConfirmSave(false);
+    setIsEditing(false);
+  };
+
+  const runGuardedAction = (event: React.SyntheticEvent, action: () => void) => {
+    event.stopPropagation();
+    if (shouldBlockAction()) {
+      event.preventDefault();
+      return;
+    }
+    action();
+  };
+
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
@@ -77,7 +190,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
   useEffect(() => {
     if (!autoOpenEdit || !isLoggedIn || !shop.can_edit) return;
-    setIsEditing(true);
+    openEditor();
     onAutoEditHandled?.();
   }, [autoOpenEdit, isLoggedIn, shop.can_edit, onAutoEditHandled]);
 
@@ -263,14 +376,40 @@ const ShopCard: React.FC<ShopCardProps> = ({
             overflow: 'hidden',
           }}
           onClick={(e) => e.stopPropagation()} // 👈 【重要】防止点击弹窗白色区域本身触发冒泡
+          onTouchStartCapture={(e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            markGestureStart(touch.clientX, touch.clientY);
+          }}
+          onTouchMoveCapture={(e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            markGestureMove(touch.clientX, touch.clientY);
+          }}
+          onTouchEndCapture={markGestureEnd}
+          onTouchCancelCapture={markGestureEnd}
+          onPointerDownCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureStart(e.clientX, e.clientY);
+          }}
+          onPointerMoveCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureMove(e.clientX, e.clientY);
+          }}
+          onPointerUpCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureEnd();
+          }}
+          onPointerCancelCapture={(e) => {
+            if (e.pointerType !== 'touch') return;
+            markGestureEnd();
+          }}
         >
           <div className="flex items-center justify-between p-4 border-b bg-gray-50 rounded-t-2xl">
             <h3 className="font-bold text-lg text-gray-800">Edit Shop</h3>
             <button 
               onClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(false);
-                setShowConfirmSave(false);
+                runGuardedAction(e, closeEditor);
               }}
               className="p-2 hover:bg-gray-200 rounded-full transition-colors"
             >
@@ -278,7 +417,13 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y">
+          <div
+            className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y"
+            onScroll={() => {
+              markScrollInteraction();
+            }}
+            onWheel={markScrollInteraction}
+          >
             {/* NAME */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
@@ -485,9 +630,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex gap-3">
             <button
               onClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(false);
-                setShowConfirmSave(false);
+                runGuardedAction(e, closeEditor);
               }}
               className="flex-1 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-100 transition-colors"
             >
@@ -495,8 +638,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
             <button
               onClick={(e) => {
-                e.stopPropagation(); // 👈 【重要】之前漏了这个
-                setShowConfirmSave(true);
+                runGuardedAction(e, () => setShowConfirmSave(true));
               }}
               className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
             >
@@ -511,8 +653,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <div
               className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
-                e.stopPropagation();
-                setShowConfirmSave(false);
+                runGuardedAction(e, () => setShowConfirmSave(false));
               }}
             />
             <div 
@@ -527,8 +668,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
               <div className="flex gap-3">
                 <button 
                   onClick={(e) => {
-                    e.stopPropagation();
-                    setShowConfirmSave(false);
+                    runGuardedAction(e, () => setShowConfirmSave(false));
                   }} 
                   className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors"
                 >
@@ -536,8 +676,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 </button>
                 <button 
                   onClick={(e) => {
-                    e.stopPropagation();
-                    handleSave();
+                    runGuardedAction(e, () => {
+                      handleSave();
+                    });
                   }} 
                   className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
@@ -571,7 +712,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
       {isLoggedIn && shop.can_edit && (
         <div className="absolute top-2 right-2 z-50 flex gap-1">
           <button
-            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+            onClick={(e) => { e.stopPropagation(); openEditor(); }}
             className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm shadow-md hover:bg-blue-600 transition-colors"
           >
             ✏️
