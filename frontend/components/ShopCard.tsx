@@ -18,6 +18,8 @@ interface ShopCardProps {
   canDelete?: boolean;
   autoOpenEdit?: boolean;
   onAutoEditHandled?: () => void;
+  /** Home: pause drawer / horizontal list gestures while any shop edit modal is open */
+  onEditModalChange?: (isOpen: boolean) => void;
 }
 
 const ShopCard: React.FC<ShopCardProps> = ({
@@ -33,9 +35,18 @@ const ShopCard: React.FC<ShopCardProps> = ({
   canDelete,
   autoOpenEdit,
   onAutoEditHandled,
+  onEditModalChange,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    onEditModalChange?.(true);
+    return () => {
+      onEditModalChange?.(false);
+    };
+  }, [isEditing, onEditModalChange]);
 
   const getShopSlug = () => {
     return (shop.name || '')

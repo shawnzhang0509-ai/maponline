@@ -99,6 +99,8 @@ const HomePage: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [pendingEditShopId, setPendingEditShopId] = useState<number | null>(null);
   const handledAutoEditKeyRef = useRef<string | null>(null);
+  /** Any ShopCard edit modal is open — block drawer + horizontal list touch handlers */
+  const [shopCardEditOpen, setShopCardEditOpen] = useState(false);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -310,6 +312,7 @@ const HomePage: React.FC = () => {
   }, [isExpanded, filteredShops.length, selectedShop]);
 
   const handleListDragStart = (clientX: number) => {
+    if (shopCardEditOpen) return;
     isDraggingList.current = true;
     isPausedByUser.current = true;
     startX.current = clientX;
@@ -346,6 +349,13 @@ const HomePage: React.FC = () => {
     window.removeEventListener('touchend', handleListMouseUp);
     scheduleResume();
   };
+
+  useEffect(() => {
+    if (!shopCardEditOpen) return;
+    stopAutoScroll();
+    if (isDraggingList.current) handleListMouseUp();
+    isDraggingDrawer.current = false;
+  }, [shopCardEditOpen]);
 
   // Two-Step Click Logic
   const handleCardClick = (shop: Shop, currentEventClientX: number) => {
@@ -390,6 +400,7 @@ const HomePage: React.FC = () => {
   const startHeight = useRef(0);
 
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
+    if (shopCardEditOpen) return;
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
     isDraggingDrawer.current = true;
     startY.current = e.touches[0].clientY;
@@ -414,6 +425,7 @@ const HomePage: React.FC = () => {
     else stopAutoScroll();
   };
   const handleDrawerMouseDown = (e: React.MouseEvent) => {
+    if (shopCardEditOpen) return;
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
     isDraggingDrawer.current = true;
     startY.current = e.clientY;
@@ -727,6 +739,7 @@ const HomePage: React.FC = () => {
                             onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
                             autoOpenEdit={shouldAutoOpenEdit}
                             onAutoEditHandled={() => setPendingEditShopId(null)}
+                            onEditModalChange={setShopCardEditOpen}
                           />
                           {isSelected && (
                             <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
