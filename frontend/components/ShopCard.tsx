@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
@@ -39,6 +39,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const gestureStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isScrollGestureRef = useRef(false);
+  const blockActionUntilRef = useRef(0);
+
+  const SCROLL_DISTANCE_THRESHOLD = 12;
+  const ACTION_BLOCK_MS_AFTER_SCROLL = 280;
 
   const getShopSlug = () => {
     return (shop.name || '')
@@ -55,6 +61,31 @@ const ShopCard: React.FC<ShopCardProps> = ({
     const detailUrl = `${window.location.origin}${detailPath}`;
     return `Hi ${ownerName}, saw your ad on nzmassagemap.online, your home page is ${detailUrl}`;
   };
+
+  const markGestureStart = (x: number, y: number) => {
+    gestureStartRef.current = { x, y };
+    isScrollGestureRef.current = false;
+  };
+
+  const markGestureMove = (x: number, y: number) => {
+    const start = gestureStartRef.current;
+    if (!start) return;
+    const dx = Math.abs(x - start.x);
+    const dy = Math.abs(y - start.y);
+    if (Math.max(dx, dy) > SCROLL_DISTANCE_THRESHOLD) {
+      isScrollGestureRef.current = true;
+      blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
+    }
+  };
+
+  const markGestureEnd = () => {
+    if (isScrollGestureRef.current) {
+      blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
+    }
+    gestureStartRef.current = null;
+  };
+
+  const shouldBlockAction = () => Date.now() < blockActionUntilRef.current;
 
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
@@ -261,6 +292,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <button 
               onClick={(e) => {
                 e.stopPropagation();
+                if (shouldBlockAction()) return;
                 setIsEditing(false);
                 setShowConfirmSave(false);
               }}
@@ -270,7 +302,35 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+          <div
+            className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar"
+            onScroll={() => {
+              blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
+            }}
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              if (!touch) return;
+              markGestureStart(touch.clientX, touch.clientY);
+            }}
+            onTouchMove={(e) => {
+              const touch = e.touches[0];
+              if (!touch) return;
+              markGestureMove(touch.clientX, touch.clientY);
+            }}
+            onTouchEnd={markGestureEnd}
+            onPointerDown={(e) => {
+              if (e.pointerType !== 'touch') return;
+              markGestureStart(e.clientX, e.clientY);
+            }}
+            onPointerMove={(e) => {
+              if (e.pointerType !== 'touch') return;
+              markGestureMove(e.clientX, e.clientY);
+            }}
+            onPointerUp={(e) => {
+              if (e.pointerType !== 'touch') return;
+              markGestureEnd();
+            }}
+          >
             {/* NAME */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
@@ -478,6 +538,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (shouldBlockAction()) return;
                 setIsEditing(false);
                 setShowConfirmSave(false);
               }}
@@ -488,6 +549,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation(); // 👈 【重要】之前漏了这个
+                if (shouldBlockAction()) return;
                 setShowConfirmSave(true);
               }}
               className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
@@ -520,6 +582,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (shouldBlockAction()) return;
                     setShowConfirmSave(false);
                   }} 
                   className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg transition-colors"
@@ -529,6 +592,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (shouldBlockAction()) return;
                     handleSave();
                   }} 
                   className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
