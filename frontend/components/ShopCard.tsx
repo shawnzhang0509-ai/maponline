@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
@@ -20,15 +20,6 @@ interface ShopCardProps {
   onAutoEditHandled?: () => void;
 }
 
-const SCROLL_DEBOUNCE_MS = 150;
-const BACKDROP_TAP_MAX_MOVE_PX = 22;
-const BACKDROP_TAP_MAX_DURATION_MS = 900;
-
-function isCoarsePointer(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(pointer: coarse)').matches;
-}
-
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
   isSelected,
@@ -45,78 +36,6 @@ const ShopCard: React.FC<ShopCardProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
-
-  /** True while user is actively scrolling (mobile); debounced clear */
-  const isScrollingRef = useRef(false);
-  const scrollDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** After any touch scroll, ignore backdrop “close” briefly (ghost taps) */
-  const ignoreBackdropCloseUntilRef = useRef(0);
-  const backdropPointerRef = useRef({ x: 0, y: 0, t: 0 });
-
-  useEffect(() => {
-    if (!isEditing || !isCoarsePointer()) return;
-
-    const markScroll = () => {
-      isScrollingRef.current = true;
-      ignoreBackdropCloseUntilRef.current = Date.now() + SCROLL_DEBOUNCE_MS + 200;
-      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
-      scrollDebounceTimerRef.current = setTimeout(() => {
-        isScrollingRef.current = false;
-        scrollDebounceTimerRef.current = null;
-      }, SCROLL_DEBOUNCE_MS);
-    };
-
-    document.addEventListener('touchmove', markScroll, { passive: true, capture: true });
-    return () => {
-      document.removeEventListener('touchmove', markScroll, true);
-      if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
-    };
-  }, [isEditing]);
-
-  const closeEditor = useCallback(() => {
-    setIsEditing(false);
-    setShowConfirmSave(false);
-  }, []);
-
-  const tryBackdropClose = useCallback(
-    (source: 'click' | 'touchend') => {
-      if (showConfirmSave) {
-        setShowConfirmSave(false);
-        return;
-      }
-      if (isCoarsePointer()) {
-        if (source === 'click') return;
-        if (isScrollingRef.current || Date.now() < ignoreBackdropCloseUntilRef.current) return;
-        const t = backdropPointerRef.current;
-        if (!t.t) return;
-        const elapsed = Date.now() - t.t;
-        if (elapsed > BACKDROP_TAP_MAX_DURATION_MS) return;
-        closeEditor();
-        return;
-      }
-      closeEditor();
-    },
-    [closeEditor, showConfirmSave]
-  );
-
-  const handleBackdropPointerDown = (e: React.PointerEvent) => {
-    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-    backdropPointerRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-  };
-
-  const handleBackdropPointerUp = (e: React.PointerEvent) => {
-    if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-    const start = backdropPointerRef.current;
-    if (!start.t) return;
-    const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-    backdropPointerRef.current = { x: 0, y: 0, t: 0 };
-    if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
-    tryBackdropClose('touchend');
-  };
-
-  const handleBackdropClick = () => {
-    tryBackdropClose('click');
-  };
 
   const getShopSlug = () => {
     return (shop.name || '')
@@ -137,12 +56,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
+    // Lock page scroll only — do NOT set touch-action: none on body; that blocks
+    // touch scrolling inside the modal (overflow-y) on mobile.
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
     return () => {
       document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
     };
   }, [isEditing]);
 
@@ -319,14 +237,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
+        {/* No tap-to-dismiss: fast scroll often lands on backdrop and was closing the editor */}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" aria-hidden />
+
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]"
-          onClick={handleBackdropClick}
-          onPointerDownCapture={handleBackdropPointerDown}
-          onPointerUpCapture={handleBackdropPointerUp}
-        />
-        
-        <div 
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
           style={{
             top: '50%',
@@ -353,7 +267,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+          <div className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y">
             {/* NAME */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
@@ -587,21 +501,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
               className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
                 e.stopPropagation();
-                if (isCoarsePointer()) return;
                 setShowConfirmSave(false);
-              }}
-              onPointerDownCapture={handleBackdropPointerDown}
-              onPointerUpCapture={(e) => {
-                e.stopPropagation();
-                if (!isCoarsePointer() || e.pointerType !== 'touch') return;
-                const start = backdropPointerRef.current;
-                if (!start.t) return;
-                const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-                backdropPointerRef.current = { x: 0, y: 0, t: 0 };
-                if (dist > BACKDROP_TAP_MAX_MOVE_PX) return;
-                if (!isScrollingRef.current && Date.now() >= ignoreBackdropCloseUntilRef.current) {
-                  setShowConfirmSave(false);
-                }
               }}
             />
             <div 
