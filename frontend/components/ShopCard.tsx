@@ -52,11 +52,17 @@ const ShopCard: React.FC<ShopCardProps> = ({
   /** After any touch scroll, ignore backdrop “close” briefly (ghost taps) */
   const ignoreBackdropCloseUntilRef = useRef(0);
   const backdropPointerRef = useRef({ x: 0, y: 0, t: 0 });
+  const editModalPanelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isEditing || !isCoarsePointer()) return;
 
-    const markScroll = () => {
+    const markScroll = (e: TouchEvent) => {
+      const panel = editModalPanelRef.current;
+      const t = e.target;
+      if (panel && t instanceof Node && panel.contains(t)) {
+        return;
+      }
       isScrollingRef.current = true;
       ignoreBackdropCloseUntilRef.current = Date.now() + SCROLL_DEBOUNCE_MS + 200;
       if (scrollDebounceTimerRef.current) clearTimeout(scrollDebounceTimerRef.current);
@@ -137,12 +143,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
+    // Lock page scroll only — do NOT set touch-action: none on body; that blocks
+    // touch scrolling inside the modal (overflow-y) on mobile.
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
     return () => {
       document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
     };
   }, [isEditing]);
 
@@ -326,7 +331,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
           onPointerUpCapture={handleBackdropPointerUp}
         />
         
-        <div 
+        <div
+          ref={editModalPanelRef}
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
           style={{
             top: '50%',
@@ -353,7 +359,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+          <div className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y">
             {/* NAME */}
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1">NAME</label>
