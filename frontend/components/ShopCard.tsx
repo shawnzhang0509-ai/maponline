@@ -20,9 +20,6 @@ interface ShopCardProps {
   onAutoEditHandled?: () => void;
 }
 
-  // ... 前面的 state 定义 ...
-
-
 const ShopCard: React.FC<ShopCardProps> = ({
   shop,
   isSelected,
@@ -90,12 +87,11 @@ const ShopCard: React.FC<ShopCardProps> = ({
   useEffect(() => {
     if (!isEditing || typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
+    // Lock page scroll only — do NOT set touch-action: none on body; that blocks
+    // touch scrolling inside the modal (overflow-y) on mobile.
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
     return () => {
       document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
     };
   }, [isEditing]);
 
@@ -272,9 +268,10 @@ const ShopCard: React.FC<ShopCardProps> = ({
   if (isEditing && typeof document !== 'undefined') {
     const modalContent = (
       <>
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" />
-        
-        <div 
+        {/* No tap-to-dismiss: fast scroll often lands on backdrop and was closing the editor */}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99998]" aria-hidden />
+
+        <div
           className="fixed z-[99999] bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]"
           style={{
             top: '50%',
@@ -303,7 +300,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
           </div>
 
           <div
-            className="p-4 overflow-y-auto flex-1 space-y-4 custom-scrollbar"
+            className="p-4 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-4 custom-scrollbar touch-pan-y"
             onScroll={() => {
               blockActionUntilRef.current = Date.now() + ACTION_BLOCK_MS_AFTER_SCROLL;
             }}
@@ -562,12 +559,12 @@ const ShopCard: React.FC<ShopCardProps> = ({
         {/* Confirm Modal */}
         {showConfirmSave && (
           <>
-            <div 
-              className="fixed inset-0 bg-black/70 z-[100000]" 
+            <div
+              className="fixed inset-0 bg-black/70 z-[100000]"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowConfirmSave(false);
-              }} 
+              }}
             />
             <div 
               className="fixed z-[100001] bg-white rounded-2xl p-6 w-[90%] max-w-sm shadow-2xl"

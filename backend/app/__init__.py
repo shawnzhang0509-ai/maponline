@@ -48,6 +48,7 @@ def create_app():
     from app.models.click_stat import ClickStat  # <--- 新增这一行
     from app.models.user import User
     from app.models.shop_owner import ShopOwner
+    from app.models.site_page import SitePage  # noqa: F401 — register table
 
     # ==========================================
     # 👇 修改点 2：注册 tracking 蓝图
@@ -55,10 +56,12 @@ def create_app():
     from app.routes.shop import shop_bp
     from app.routes.user import user_bp
     from app.routes.tracking import tracking_bp  # <--- 新增导入
+    from app.routes.pages import pages_bp
 
     app.register_blueprint(shop_bp)
     app.register_blueprint(user_bp)
-    app.register_blueprint(tracking_bp) 
+    app.register_blueprint(tracking_bp)
+    app.register_blueprint(pages_bp) 
 
     # ... (后面的文件服务和路由保持不变) ...
     @app.route('/files/<path:filename>')
