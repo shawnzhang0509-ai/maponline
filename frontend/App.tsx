@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
-import { BrowserRouter, Routes, Route, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
 import Header from './components/Header';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
-import ContactModal from './components/ContactModal'; // 引入联系弹窗
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
 import AdminPanel from './components/AdminPanel';
 import ShopDetailPage from './pages/ShopDetailPage';
 import { Shop, UserLocation } from './types';
-import { NZ_CENTER, TAG_CONFIG } from './constants';
+import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
@@ -98,6 +97,8 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [pendingEditShopId, setPendingEditShopId] = useState<number | null>(null);
+  const handledAutoEditKeyRef = useRef<string | null>(null);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -107,6 +108,8 @@ const HomePage: React.FC = () => {
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
     const focusId = searchParams.get('focus');
+    const shouldAutoEdit = searchParams.get('edit') === '1';
+    const autoEditKey = shouldAutoEdit && focusId ? focusId : null;
     
     if (lat && lng) {
       setUserLocation({ lat: parseFloat(lat), lng: parseFloat(lng) });
@@ -117,8 +120,15 @@ const HomePage: React.FC = () => {
         if (target) {
           setSelectedShop(target);
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
+          if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
+            setPendingEditShopId(target.id);
+            handledAutoEditKeyRef.current = autoEditKey;
+          }
         }
       }
+    }
+    if (!autoEditKey) {
+      handledAutoEditKeyRef.current = null;
     }
   }, [searchParams, shops]);
 
@@ -142,17 +152,37 @@ const HomePage: React.FC = () => {
     window.location.href = 'https://www.google.com';
   };
 
-  const getShopTags = (shop: any): string[] => {
+  const normalizeTag = (tag: string): string => {
+    let clean = (tag || '').trim().toLowerCase();
+    if (!clean) return '';
+    clean = clean.replace(/^🆕\s*/, '');
+    clean = clean.replace(/\s+/g, ' ');
+    clean = clean
+      .replace(/^[^a-z0-9\u4e00-\u9fa5]+/gi, '')
+      .replace(/[^a-z0-9\u4e00-\u9fa5]+$/gi, '')
+      .trim();
+
+    const aliasMap: Record<string, string> = {
+      'new girl': 'new',
+      'new girls': 'new',
+      'vip seller': 'vip',
+      'diamond seller': 'diamond',
+      'adultdollseller': 'adult doll seller',
+    };
+    return aliasMap[clean] || clean;
+  };
+
+  const getShopTags = (shop: Shop): string[] => {
     const text = shop.badge_text;
-    const fromText: string[] = [];
-    if (text && typeof text === 'string' && text.trim() !== '') {
-      let cleanText = text.trim();
-      if (cleanText.startsWith('🆕')) cleanText = cleanText.replace('🆕', '').trim();
-      if (cleanText.includes(',')) fromText.push(...cleanText.split(',').map(t => t.trim()).filter(Boolean));
-      else fromText.push(cleanText);
-    }
-    if (shop.new_girls_last_15_days && !fromText.some((t) => t.toLowerCase() === 'new')) {
-      fromText.push('New');
+    const fromText =
+      text && typeof text === 'string' && text.trim() !== ''
+        ? text
+            .split(/[,\n，|/]+/)
+            .map((t) => normalizeTag(t))
+            .filter(Boolean)
+        : [];
+    if (shop.new_girls_last_15_days && !fromText.includes('new')) {
+      fromText.push('new');
     }
     return fromText;
   };
@@ -175,18 +205,16 @@ const HomePage: React.FC = () => {
 
     // 2. 执行标签过滤（多选：匹配任意一个）
     if (selectedTags.length > 0) {
-      const targetTags = selectedTags.map((t) => t.toLowerCase());
+      const targetTags = new Set(selectedTags.map((t) => normalizeTag(t)));
       result = result.filter((shop) =>
-        getShopTags(shop).some((tag) => targetTags.includes(tag.toLowerCase()))
+        getShopTags(shop).some((tag) => targetTags.has(tag))
       );
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
     // 定义优先级辅助函数
     const getPriority = (shop: Shop) => {
-      const badgeStr = (shop.badge_text && shop.badge_text.trim()) || (shop.new_girls_last_15_days ? 'New' : '');
-      if (!badgeStr) return 0;
-      const tags = badgeStr.toLowerCase().split(',').map(t => t.trim());
+      const tags = getShopTags(shop);
       if (tags.includes('diamond')) return 3; // 最高优先级
       if (tags.includes('vip')) return 2;      // 次高优先级
       return 0;                                // 普通店铺
@@ -561,6 +589,18 @@ const HomePage: React.FC = () => {
     finally { setDeletingId(null); }
   };
 
+  const handleCreateAdClick = () => {
+    if (!isLoggedIn) {
+      setShowLogin(true);
+      return;
+    }
+    if (!isAdmin) {
+      alert('Only admin can create new ads. Please contact admin to get ads assigned.');
+      return;
+    }
+    setShowCreateAd(true);
+  };
+
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(shops)); } catch (e) {} }, [shops]);
   useEffect(() => { fetchShops(); }, []);
 
@@ -573,15 +613,17 @@ const HomePage: React.FC = () => {
       {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
       {/* 👆 插入结束 👆 */}
 
-      <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
-          <BadgeFilterDropdown
-            allTags={allTags}
-            selectedTags={selectedTags}
-            onChange={setSelectedTags}
-          />
+      {allTags.length > 0 && (
+        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+          <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
+            <BadgeFilterDropdown
+              allTags={allTags}
+              selectedTags={selectedTags}
+              onChange={setSelectedTags}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 relative overflow-hidden">
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
@@ -589,9 +631,9 @@ const HomePage: React.FC = () => {
         <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
           <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
           <button
-            onClick={() => (isLoggedIn ? setShowCreateAd(true) : setShowLogin(true))}
+            onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
-            title={isLoggedIn ? 'Add your ad' : 'Login to add ad'}
+            title={!isLoggedIn ? 'Login to add ad' : (isAdmin ? 'Add your ad' : 'Admin-only: assign required')}
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -654,6 +696,8 @@ const HomePage: React.FC = () => {
                       const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
                       const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                       const isSelected = selectedShop?.id === shop.id;
+                      const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
+                      const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
                       
                       return (
                         <div
@@ -681,6 +725,8 @@ const HomePage: React.FC = () => {
                             deleting={deletingId === shop.id}
                             isLoggedIn={isLoggedIn}
                             onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
+                            autoOpenEdit={shouldAutoOpenEdit}
+                            onAutoEditHandled={() => setPendingEditShopId(null)}
                           />
                           {isSelected && (
                             <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">

@@ -123,91 +123,105 @@ const AssignAdsPage: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading assignment data...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (loading) {
+    return (
+      <div className="h-screen overflow-y-auto bg-gray-50 p-8 text-center text-gray-500">
+        Loading assignment data...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="h-screen overflow-y-auto bg-gray-50 p-8 text-center text-red-500">
+        Error: {error}
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">🛠 Assign Ads</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Admin tool: assign ad edit ownership to a user. Admin always keeps full edit access.
-          </p>
+    <div className="h-screen overflow-y-auto bg-gray-50">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">🛠 Assign Ads</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Admin tool: assign ad edit ownership to a user. Admin always keeps full edit access.
+            </p>
+          </div>
+          <Link
+            to="/"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700"
+          >
+            Back to Home
+          </Link>
         </div>
-        <Link
-          to="/"
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700"
-        >
-          Back to Home
-        </Link>
-      </div>
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto no-scrollbar touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <table className="min-w-[900px] w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Owner</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assign To User</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {shops.length === 0 ? (
+        <div className="bg-white rounded-lg shadow overflow-x-auto touch-scroll-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="min-w-[900px] w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-6 py-5 text-center text-gray-500">
-                  No shops found.
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Owner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assign To User</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
               </tr>
-            ) : (
-              shops.map((shop) => (
-                <tr key={shop.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {shop.name}
-                    <div className="text-xs text-gray-400">ID: {shop.id}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {owners[shop.id]?.owner_username ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-                        {owners[shop.id].owner_username}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">Unassigned</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    <select
-                      value={selectedOwner[shop.id] || ''}
-                      onChange={(e) =>
-                        setSelectedOwner((prev) => ({ ...prev, [shop.id]: e.target.value }))
-                      }
-                      className="border rounded px-2 py-1 text-sm bg-white"
-                    >
-                      <option value="">Select user...</option>
-                      {nonAdminUsers.map((u) => (
-                        <option key={u.id} value={u.username}>
-                          {u.username}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => handleAssign(shop.id)}
-                      disabled={savingShopId === shop.id}
-                      className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-60"
-                    >
-                      {savingShopId === shop.id ? 'Assigning...' : 'Assign'}
-                    </button>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {shops.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-5 text-center text-gray-500">
+                    No shops found.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                shops.map((shop) => (
+                  <tr key={shop.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {shop.name}
+                      <div className="text-xs text-gray-400">ID: {shop.id}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      {owners[shop.id]?.owner_username ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                          {owners[shop.id].owner_username}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Unassigned</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <select
+                        value={selectedOwner[shop.id] || ''}
+                        onChange={(e) =>
+                          setSelectedOwner((prev) => ({ ...prev, [shop.id]: e.target.value }))
+                        }
+                        className="border rounded px-2 py-1 text-sm bg-white"
+                      >
+                        <option value="">Select user...</option>
+                        {nonAdminUsers.map((u) => (
+                          <option key={u.id} value={u.username}>
+                            {u.username}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => handleAssign(shop.id)}
+                        disabled={savingShopId === shop.id}
+                        className="px-3 py-1.5 rounded bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-60"
+                      >
+                        {savingShopId === shop.id ? 'Assigning...' : 'Assign'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

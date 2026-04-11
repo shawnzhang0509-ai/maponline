@@ -12,6 +12,7 @@ const MyAdsPage: React.FC = () => {
   const username = localStorage.getItem('admin_username') || '';
   const token = localStorage.getItem('auth_token') || '';
   const isLoggedIn = localStorage.getItem('admin_logged_in') === 'true';
+  const isAdmin = localStorage.getItem('is_admin') === 'true';
 
   useEffect(() => {
     if (!isLoggedIn || !token) {
@@ -40,63 +41,95 @@ const MyAdsPage: React.FC = () => {
   }, [API_BASE_URL, isLoggedIn, navigate, token]);
 
   const total = useMemo(() => shops.length, [shops]);
+  const getShopSlug = (name: string) =>
+    (name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading your ads...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+  if (loading) {
+    return <div className="min-h-screen overflow-y-auto p-8 text-center text-gray-500">Loading your ads...</div>;
+  }
+  if (error) {
+    return <div className="min-h-screen overflow-y-auto p-8 text-center text-red-500">Error: {error}</div>;
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">📋 My Ads</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            User: <span className="font-medium">{username || 'Unknown'}</span> · Total: {total}
-          </p>
+    <div className="min-h-screen overflow-y-auto">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">📋 My Ads</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              User: <span className="font-medium">{username || 'Unknown'}</span> · Total: {total}
+            </p>
+            {!isAdmin && (
+              <p className="text-xs text-amber-700 mt-2">
+                You can only edit ads assigned to your account by admin.
+              </p>
+            )}
+          </div>
+          <Link
+            to="/"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700"
+          >
+            Back to Home
+          </Link>
         </div>
-        <Link
-          to="/"
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700"
-        >
-          Back to Home
-        </Link>
-      </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {shops.length === 0 ? (
+        <div className="bg-white rounded-lg shadow overflow-hidden touch-scroll-x">
+          <table className="min-w-[760px] w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={4} className="px-6 py-5 text-center text-gray-500">
-                  You don't have any ads yet. Add one from the home page after login.
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
-            ) : (
-              shops.map((shop) => (
-                <tr key={shop.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {shop.name}
-                    <div className="text-xs text-gray-400">ID: {shop.id}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{shop.phone}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <Link to={`/stats/${shop.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
-                      Stats →
-                    </Link>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {shops.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    {isAdmin
+                      ? 'No ads found.'
+                      : 'No ads are assigned to your account yet. Please contact admin for assignment.'}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                shops.map((shop) => {
+                  const slug = getShopSlug(shop.name);
+                  return (
+                    <tr key={shop.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {shop.name}
+                        <div className="text-xs text-gray-400">ID: {shop.id}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{shop.address}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{shop.phone}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/?focus=${shop.id}&edit=1`)}
+                          className="text-rose-600 hover:text-rose-800 font-medium mr-4"
+                        >
+                          Edit →
+                        </button>
+                        <Link
+                          to={slug ? `/shop/${slug}` : `/shop/${shop.id}`}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          View Page
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

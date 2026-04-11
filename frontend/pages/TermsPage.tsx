@@ -92,7 +92,7 @@ const TermsPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen h-screen bg-gray-50 flex flex-col overflow-y-auto">
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link to="/" className="p-2 hover:bg-gray-100 rounded-full transition-colors">

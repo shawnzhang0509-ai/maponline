@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
-import { getSMSLink } from '../utils';
 import { dmsToDecimal } from '../utils/geoUtils';
+import { getTagStyle } from '../constants';
 
 interface ShopCardProps {
   shop: Shop;
@@ -16,25 +16,9 @@ interface ShopCardProps {
   isLoggedIn?: boolean;
   isAdmin?: boolean;
   canDelete?: boolean;
+  autoOpenEdit?: boolean;
+  onAutoEditHandled?: () => void;
 }
-
-// ==========================================
-// 🎨 智能标签配置表
-// ==========================================
-const TAG_CONFIG: Record<string, { icon: string; bg: string; text?: string }> = {
-  'diamond': { icon: '💎', bg: 'bg-gradient-to-r from-blue-400 to-blue-600 text-white shadow-blue-300', text: 'Diamond' },
-  'vip':     { icon: '👑', bg: 'bg-gradient-to-r from-amber-300 to-amber-500 text-amber-900 shadow-amber-200', text: 'VIP' },
-  'new':     { icon: '🆕', bg: 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-300', text: 'New' },
-  'hot':     { icon: '🔥', bg: 'bg-gradient-to-r from-orange-400 to-red-500 text-white shadow-orange-300', text: 'Hot' },
-  'fresh':   { icon: '✨', bg: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-teal-200', text: 'Fresh' },
-  'nice':    { icon: '💖', bg: 'bg-gradient-to-r from-pink-400 to-rose-400 text-white shadow-pink-200', text: 'Nice' },
-  'massage': { icon: '💆‍♀️', bg: 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white shadow-purple-200', text: 'Massage' },
-  'thai':    { icon: '🇹🇭', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Thai' },
-  'chinese': { icon: '🇨🇳', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Chinese' },
-  'japanese':{ icon: '🇯🇵', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Japanese' },
-  'korean':  { icon: '🇰🇷', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Korean' },
-  'default': { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' }
-};
 
 const SCROLL_DEBOUNCE_MS = 150;
 const BACKDROP_TAP_MAX_MOVE_PX = 22;
@@ -56,6 +40,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
   isLoggedIn,
   isAdmin,
   canDelete,
+  autoOpenEdit,
+  onAutoEditHandled,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
@@ -132,6 +118,40 @@ const ShopCard: React.FC<ShopCardProps> = ({
     tryBackdropClose('click');
   };
 
+  const getShopSlug = () => {
+    return (shop.name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const buildSmsMessage = () => {
+    const ownerName = (shop.name || '').trim() || 'there';
+    const slug = getShopSlug();
+    const detailPath = slug ? `/shop/${slug}` : `/shop/${shop.id}`;
+    const detailUrl = `${window.location.origin}${detailPath}`;
+    return `Hi ${ownerName}, saw your ad on nzmassagemap.online, your home page is ${detailUrl}`;
+  };
+
+  useEffect(() => {
+    if (!isEditing || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+    };
+  }, [isEditing]);
+
+  useEffect(() => {
+    if (!autoOpenEdit || !isLoggedIn || !shop.can_edit) return;
+    setIsEditing(true);
+    onAutoEditHandled?.();
+  }, [autoOpenEdit, isLoggedIn, shop.can_edit, onAutoEditHandled]);
+
   // ✅ 关键修正：字段名与后端 shop.py 严格对应 (about_me, additional_price)
   const [editData, setEditData] = useState<ShopEdit>({
     ...shop,
@@ -196,7 +216,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     // 4. 执行真正的跳转（发短信或打电话）
     // 注意：这里必须放在 fetch 之后，且不等待 fetch 完成
     if (type === 'sms') {
-        const bodyText = encodeURIComponent('Hi, is there any availability today?');
+        const bodyText = encodeURIComponent(buildSmsMessage());
         window.location.href = `sms:${phone}?body=${bodyText}`;
     } else if (type === 'call') {
         window.location.href = `tel:${phone}`;
@@ -518,7 +538,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
                     const t = tag.trim();
                     if (!t) return null;
                     const lower = t.toLowerCase();
-                    const config = TAG_CONFIG[lower] || TAG_CONFIG['default'];
+                    const config = getTagStyle(lower);
                     const display = config.text || (t.charAt(0).toUpperCase() + t.slice(1));
                     
                     return (
@@ -673,7 +693,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
             const rawTag = tagStr.trim();
             if (!rawTag) return null;
             const lowerTag = rawTag.toLowerCase();
-            const config = TAG_CONFIG[lowerTag] || TAG_CONFIG['default'];
+            const config = getTagStyle(lowerTag);
             const displayText = config.text || (rawTag.charAt(0).toUpperCase() + rawTag.slice(1));
 
             return (
