@@ -18,6 +18,8 @@ interface ShopCardProps {
   canDelete?: boolean;
   autoOpenEdit?: boolean;
   onAutoEditHandled?: () => void;
+  /** Home: pause drawer / horizontal list gestures while any shop edit modal is open */
+  onEditModalChange?: (isOpen: boolean) => void;
 }
 
 type GestureState = 'idle' | 'tap' | 'scroll' | 'drag';
@@ -35,6 +37,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
   canDelete,
   autoOpenEdit,
   onAutoEditHandled,
+  onEditModalChange,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
@@ -47,6 +50,14 @@ const ShopCard: React.FC<ShopCardProps> = ({
   const DRAG_MOVE_THRESHOLD = 14;
   const TAP_MAX_DURATION_MS = 280;
   const ACTION_BLOCK_MS_AFTER_NON_TAP = 900;
+
+  useEffect(() => {
+    if (!isEditing) return;
+    onEditModalChange?.(true);
+    return () => {
+      onEditModalChange?.(false);
+    };
+  }, [isEditing, onEditModalChange]);
 
   const getShopSlug = () => {
     return (shop.name || '')
