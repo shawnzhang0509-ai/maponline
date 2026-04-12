@@ -29,6 +29,8 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
   // --- Refs ---
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
+  const touchStartY = useRef<number>(0);
+  const touchEndY = useRef<number>(0);
   const isSwiping = useRef<boolean>(false);
   const thumbContainerRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +50,10 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
     setIsOpen(true);
     // 打开全屏时暂停自动播放
     setIsAutoPlayPaused(true);
+  };
+
+  const closeGallery = () => {
+    setIsOpen(false);
   };
 
   // 切换图片逻辑
@@ -149,7 +155,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') closeGallery();
       if (e.key === 'ArrowRight') nextImage();
       if (e.key === 'ArrowLeft') prevImage();
     };
@@ -277,16 +283,37 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
 
       {/* --- 2. 全屏画廊模态框 --- */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center selection:none"
-          onClick={() => setIsOpen(false)}
+        <div
+          className="fixed inset-0 z-[10050] bg-black/95 backdrop-blur-sm flex items-center justify-center selection-none"
+          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+          onClick={() => closeGallery()}
+          onTouchStart={(e) => {
+            if (e.touches.length !== 1) return;
+            touchStartY.current = e.touches[0].clientY;
+            touchStartX.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            if (e.changedTouches.length !== 1) return;
+            touchEndY.current = e.changedTouches[0].clientY;
+            touchEndX.current = e.changedTouches[0].clientX;
+            const dy = touchEndY.current - touchStartY.current;
+            const dx = Math.abs(touchEndX.current - touchStartX.current);
+            // Strong downward swipe on backdrop → close (common mobile pattern)
+            if (dy > 72 && dy > Math.abs(dx) * 1.2) {
+              closeGallery();
+            }
+          }}
         >
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 z-50"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeGallery();
+            }}
+            className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] min-h-12 min-w-12 p-3 bg-white/15 hover:bg-white/25 rounded-full text-white transition-all active:scale-95 z-[10051] shadow-lg border border-white/20"
             aria-label="Close gallery"
           >
-            <X size={24} />
+            <X size={26} strokeWidth={2.5} />
           </button>
 
           {pictures.length > 1 && (
@@ -325,10 +352,11 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
           )}
           
           {pictures.length > 1 && (
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-2 z-50">
+            <div className="absolute bottom-[max(5.5rem,env(safe-area-inset-bottom,0px)+4.5rem)] left-0 right-0 flex justify-center gap-2 z-[10051] px-4">
               {pictures.map((_, idx) => (
                 <button
                   key={idx}
+                  type="button"
                   onClick={(e) => { 
                     e.stopPropagation(); 
                     setCurrentIndex(idx); 
@@ -344,6 +372,19 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({
               ))}
             </div>
           )}
+
+          <div className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-0 right-0 flex justify-center z-[10051] px-6 pointer-events-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeGallery();
+              }}
+              className="px-8 py-3 rounded-full bg-white text-gray-900 font-bold text-sm shadow-lg border border-white/30 active:scale-95 md:hidden"
+            >
+              Done
+            </button>
+          </div>
           
           {pictures.length > 1 && (
             <>
