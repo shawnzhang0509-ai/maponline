@@ -708,17 +708,6 @@ const HomePage: React.FC = () => {
           </div>
         )}
 
-        {useNearbyFilter && userLocation && (
-          <div
-            className="absolute left-3 right-3 z-[998] pointer-events-none flex justify-center px-2 transition-[bottom] duration-300"
-            style={{ bottom: drawerHeight + 10 }}
-          >
-            <p className="text-center text-[11px] sm:text-xs font-semibold text-gray-800 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-xl shadow-md border border-gray-200/80 max-w-md leading-snug">
-              {nearbyRangeTitle}
-            </p>
-          </div>
-        )}
-
         {/* Drawer */}
         <div 
           ref={drawerRef}
@@ -742,70 +731,85 @@ const HomePage: React.FC = () => {
         >
           <div className="flex-1 relative overflow-hidden w-full" style={{ borderRadius: '24px 24px 0 0', paddingTop: '10px' }}>
             {isExpanded ? (
-              <div className="h-full w-full pt-4 pb-4 px-4">
-                 <div 
-                  ref={scrollRef}
-                  className="flex items-center h-full"
-                  style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
-                  onMouseDown={(e) => handleListDragStart(e.clientX)}
-                  onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
-                >
-                  {filteredShops.length > 0 ? (
-                    [...filteredShops, ...filteredShops].map((shop, index) => {
-                      const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
-                      const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                      const isSelected = selectedShop?.id === shop.id;
-                      const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
-                      const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
-                      
-                      return (
-                        <div
-                          key={uniqueKey}
-                          className="block flex-shrink-0 flex-grow-0 no-drag relative"
-                          style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
-                          onClick={(e) => {
-                            const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
-                            const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
-                            e.stopPropagation(); 
-                            handleCardClick(shop, finalX);
-                          }}
-                        >
-                          <ShopCard
-                            shop={shop}
-                            isSelected={isSelected}
-                            onClick={() => {}} 
-                            onDelete={handleDeleteShop}
-                            isAdmin={isAdmin}
-                            canDelete={isAdmin}
-                            onSave={(updated) => {
-                              const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
-                              setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
-                            }}
-                            deleting={deletingId === shop.id}
-                            isLoggedIn={isLoggedIn}
-                            onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
-                            autoOpenEdit={shouldAutoOpenEdit}
-                            onAutoEditHandled={() => setPendingEditShopId(null)}
-                            onEditModalChange={setShopCardEditOpen}
-                          />
-                          {isSelected && (
-                            <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
-                              Tap again for details
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                      {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
+              <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
+                {useNearbyFilter && userLocation && (
+                  <div className="shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] pointer-events-none">
+                    <div
+                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                        {nearbyRangeTitle}
+                      </p>
                     </div>
-                  )}
-                </div>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
-                  <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600">
-                    <ChevronDown size={22} strokeWidth={3} />
-                  </button>
+                  </div>
+                )}
+                <div className="relative flex-1 min-h-0 min-w-0 w-full">
+                  <div
+                    ref={scrollRef}
+                    className="flex items-center h-full min-h-0 min-w-0 pr-12"
+                    style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
+                    onMouseDown={(e) => handleListDragStart(e.clientX)}
+                    onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
+                  >
+                    {filteredShops.length > 0 ? (
+                      [...filteredShops, ...filteredShops].map((shop, index) => {
+                        const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
+                        const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const isSelected = selectedShop?.id === shop.id;
+                        const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
+                        const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
+                        
+                        return (
+                          <div
+                            key={uniqueKey}
+                            className="block flex-shrink-0 flex-grow-0 no-drag relative"
+                            style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
+                              const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
+                              e.stopPropagation(); 
+                              handleCardClick(shop, finalX);
+                            }}
+                          >
+                            <ShopCard
+                              shop={shop}
+                              isSelected={isSelected}
+                              onClick={() => {}} 
+                              onDelete={handleDeleteShop}
+                              isAdmin={isAdmin}
+                              canDelete={isAdmin}
+                              onSave={(updated) => {
+                                const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
+                                setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
+                              }}
+                              deleting={deletingId === shop.id}
+                              isLoggedIn={isLoggedIn}
+                              onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
+                              autoOpenEdit={shouldAutoOpenEdit}
+                              onAutoEditHandled={() => setPendingEditShopId(null)}
+                              onEditModalChange={setShopCardEditOpen}
+                            />
+                            {isSelected && (
+                              <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
+                                Tap again for details
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
+                        {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
+                      </div>
+                    )}
+                  </div>
+                  <div className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000] pointer-events-auto">
+                    <button type="button" onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600">
+                      <ChevronDown size={22} strokeWidth={3} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
