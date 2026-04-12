@@ -49,6 +49,21 @@ const CLICK_THRESHOLD = 5;
 const AUTO_SCROLL_SPEED = 0.8; 
 const RESUME_DELAY = 2500; 
 
+export type NearbyCenterType = 'USER' | 'SHOP';
+
+function buildNearbyRangeTitle(
+  centerType: NearbyCenterType,
+  centerName: string,
+  radiusKm: number
+): string {
+  const xx = radiusKm;
+  if (centerType === 'USER') {
+    return `Shops near you within ${xx}km`;
+  }
+  const name = (centerName || 'this shop').trim();
+  return `Shops surrounding ${name} within ${xx}km`;
+}
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -86,6 +101,9 @@ const HomePage: React.FC = () => {
   const [showCreateAd, setShowCreateAd] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
+  /** What the distance filter is centered on (GPS vs a shop as anchor) */
+  const [nearbyCenterType, setNearbyCenterType] = useState<NearbyCenterType>('USER');
+  const [nearbyCenterName, setNearbyCenterName] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   
@@ -121,12 +139,17 @@ const HomePage: React.FC = () => {
         const target = shops.find(s => s.id.toString() === focusId || s.id === parseInt(focusId));
         if (target) {
           setSelectedShop(target);
+          setNearbyCenterType('SHOP');
+          setNearbyCenterName(target.name || '');
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
           if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
             setPendingEditShopId(target.id);
             handledAutoEditKeyRef.current = autoEditKey;
           }
         }
+      } else {
+        setNearbyCenterType('USER');
+        setNearbyCenterName('');
       }
     }
     if (!autoEditKey) {
@@ -194,6 +217,11 @@ const HomePage: React.FC = () => {
     shops.forEach(shop => getShopTags(shop).forEach(tag => tagSet.add(tag)));
     return Array.from(tagSet).sort();
   }, [shops]);
+
+  const nearbyRangeTitle = useMemo(
+    () => buildNearbyRangeTitle(nearbyCenterType, nearbyCenterName, radiusKm),
+    [nearbyCenterType, nearbyCenterName, radiusKm]
+  );
 
   const filteredShops = useMemo(() => {
     let result = [...shops];
@@ -372,6 +400,8 @@ const HomePage: React.FC = () => {
     if (!useNearbyFilter) {
       setUseNearbyFilter(true);
       setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterType('SHOP');
+      setNearbyCenterName(shop.name || '');
       setRadiusKm(5);
     }
     if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
@@ -387,6 +417,8 @@ const HomePage: React.FC = () => {
        if (!useNearbyFilter) {
           setUseNearbyFilter(true);
           setUserLocation({ lat: shop.lat, lng: shop.lng });
+          setNearbyCenterType('SHOP');
+          setNearbyCenterName(shop.name || '');
        }
        if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
        stopAutoScroll();
@@ -533,6 +565,8 @@ const HomePage: React.FC = () => {
 
         // 1. 更新用户位置 (红点)
         setUserLocation(newLoc);
+        setNearbyCenterType('USER');
+        setNearbyCenterName('');
         
         // 2. 开启附近过滤
         setUseNearbyFilter(true); 
@@ -662,6 +696,8 @@ const HomePage: React.FC = () => {
                 setUseNearbyFilter(false);
                 setUserLocation(null);
                 setSelectedShop(null);
+                setNearbyCenterType('USER');
+                setNearbyCenterName('');
                 setCenter({ lat: -50.8485, lng: 174.7633 });
                 setZoom(5.5);
               }} 
@@ -669,6 +705,17 @@ const HomePage: React.FC = () => {
             >
               ✕ Reset
             </button>
+          </div>
+        )}
+
+        {useNearbyFilter && userLocation && (
+          <div
+            className="absolute left-3 right-3 z-[998] pointer-events-none flex justify-center px-2 transition-[bottom] duration-300"
+            style={{ bottom: drawerHeight + 10 }}
+          >
+            <p className="text-center text-[11px] sm:text-xs font-semibold text-gray-800 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-xl shadow-md border border-gray-200/80 max-w-md leading-snug">
+              {nearbyRangeTitle}
+            </p>
           </div>
         )}
 
