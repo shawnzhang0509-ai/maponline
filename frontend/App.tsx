@@ -569,33 +569,46 @@ const HomePage: React.FC = () => {
 
   const handleShareMap = async () => {
     dismissShareTooltip();
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = 'Massage Shops NZ';
-    const text = 'Find massage shops on the map — NZ Massage Map';
+    // Plain https link only (no hash) — WeChat/Android often mis-handle share({ title, text, url }) as a file
+    let shareUrl = '';
+    if (typeof window !== 'undefined') {
+      try {
+        const u = new URL(window.location.href);
+        shareUrl = `${u.origin}${u.pathname}${u.search}`;
+      } catch {
+        shareUrl = window.location.href.split('#')[0];
+      }
+    }
 
     if (navigator.share) {
       try {
-        await navigator.share({ title, text, url });
+        await navigator.share({ url: shareUrl });
         return;
       } catch {
-        /* user cancelled or share failed */
+        /* user cancelled or url-only unsupported */
+      }
+      try {
+        await navigator.share({ text: shareUrl });
+        return;
+      } catch {
+        /* fall through to clipboard */
       }
     }
 
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(shareUrl);
       alert('Link copied — share it with a friend!');
     } catch {
       try {
         const ta = document.createElement('textarea');
-        ta.value = url;
+        ta.value = shareUrl;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
         alert('Link copied — share it with a friend!');
       } catch {
-        alert(url || 'Unable to copy link');
+        alert(shareUrl || 'Unable to copy link');
       }
     }
   };
