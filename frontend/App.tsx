@@ -16,7 +16,7 @@ import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
-import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
+import { Plus, Navigation, Filter, Share2, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
@@ -24,6 +24,7 @@ import AssignAdsPage from './pages/AssignAdsPage';
 import BadgeFilterDropdown from './components/BadgeFilterDropdown';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
+const SHARE_TOOLTIP_SEEN_KEY = 'nz_share_tooltip_seen_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 /** Align list payload with UI: picture URLs, and badge_text fallback from new_girls_last_15_days */
@@ -96,7 +97,16 @@ const HomePage: React.FC = () => {
     return false;
   });
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showShareTooltip, setShowShareTooltip] = useState(false);
 
+  const dismissShareTooltip = () => {
+    try {
+      localStorage.setItem(SHARE_TOOLTIP_SEEN_KEY, 'true');
+    } catch {
+      /* ignore */
+    }
+    setShowShareTooltip(false);
+  };
 
   const [showCreateAd, setShowCreateAd] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
@@ -164,6 +174,17 @@ const HomePage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [isAgeVerified]);
+
+  // First visit after age gate: show share hint once
+  useEffect(() => {
+    if (!isAgeVerified || showAgeModal) return;
+    try {
+      if (localStorage.getItem(SHARE_TOOLTIP_SEEN_KEY) === 'true') return;
+    } catch {
+      return;
+    }
+    setShowShareTooltip(true);
+  }, [isAgeVerified, showAgeModal]);
 
   // 3. ✅ 新增：处理确认函数 (独立函数)
   const handleAgeConfirm = () => {
@@ -545,6 +566,39 @@ const HomePage: React.FC = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('is_admin');
   };
+
+  const handleShareMap = async () => {
+    dismissShareTooltip();
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const title = 'Massage Shops NZ';
+    const text = 'Find massage shops on the map — NZ Massage Map';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        /* user cancelled or share failed */
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Link copied — share it with a friend!');
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert('Link copied — share it with a friend!');
+      } catch {
+        alert(url || 'Unable to copy link');
+      }
+    }
+  };
   
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -674,16 +728,55 @@ const HomePage: React.FC = () => {
       <div className="flex-1 relative overflow-hidden">
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
-        <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
-          <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
+        {showShareTooltip && (
           <button
+            type="button"
+            aria-label="Dismiss share tip"
+            className="fixed inset-0 z-[998] bg-transparent cursor-default"
+            onClick={dismissShareTooltip}
+          />
+        )}
+
+        <div className="absolute top-4 right-4 z-[1001] flex flex-col gap-3 items-end">
+          <button type="button" onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
+          <button
+            type="button"
             onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
             title={!isLoggedIn ? 'Login to add ad' : (isAdmin ? 'Add your ad' : 'Admin-only: assign required')}
           >
             <Plus className="w-6 h-6" />
           </button>
-          <button onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
+          <button type="button" onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
+
+          <div className="relative flex items-center mt-0.5">
+            {showShareTooltip && (
+              <div
+                className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-6rem),220px)] pointer-events-none text-left"
+                role="tooltip"
+              >
+                <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-rose-100/80">
+                  <div
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share the Love</p>
+                  <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
+                    Know a friend who needs a massage? Send them this spot!
+                  </p>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleShareMap}
+              className="relative p-3 rounded-full shadow-lg bg-gradient-to-br from-orange-400 via-rose-400 to-pink-300 text-white animate-share-fab-pulse ring-2 ring-white/90"
+              title="Share this map"
+              aria-label="Share this map"
+            >
+              <Share2 className="w-6 h-6" strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
 
         {useNearbyFilter && userLocation && (

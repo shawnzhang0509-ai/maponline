@@ -23,6 +23,23 @@
   will-change: transform; /* 性能优化 */
 }
 
+/* Share FAB pulse (home map) */
+@keyframes share-fab-pulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 25px -5px rgba(251, 113, 133, 0.55), 0 0 0 0 rgba(251, 146, 60, 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 14px 35px -5px rgba(251, 113, 133, 0.85), 0 0 0 10px rgba(251, 146, 60, 0);
+    transform: scale(1.06);
+  }
+}
+
+.animate-share-fab-pulse {
+  animation: share-fab-pulse 1.35s ease-in-out infinite;
+}
+
 /* 隐藏滚动条 (让界面更干净) */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
