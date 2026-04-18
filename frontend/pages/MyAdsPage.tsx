@@ -78,6 +78,7 @@ const MyAdsPage: React.FC = () => {
           </Link>
         </div>
 
+        {/* overflow-x-auto only — overflow-hidden breaks horizontal scroll on narrow phones */}
         <div className="bg-white rounded-lg shadow border border-gray-200/80 w-full max-w-full overflow-x-auto overscroll-x-contain touch-scroll-x [-webkit-overflow-scrolling:touch]">
           <table className="min-w-[720px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
