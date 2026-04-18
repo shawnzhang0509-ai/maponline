@@ -44,9 +44,9 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
   return { ...shop, pictures, badge_text };
 }
 
-/** Taller collapsed strip so handle + hint stay visible on older / non-OLED devices */
-const COLLAPSED_HEIGHT = 104;
-const EXPANDED_HEIGHT = 392;
+/** Keep collapsed strip low so map stays large; affordance is the FAB + safe-area anchoring */
+const COLLAPSED_HEIGHT = 84;
+const EXPANDED_HEIGHT = 380;
 const CLICK_THRESHOLD = 5; 
 const AUTO_SCROLL_SPEED = 0.8; 
 const RESUME_DELAY = 2500; 
@@ -821,7 +821,7 @@ const HomePage: React.FC = () => {
           className="absolute bottom-0 left-0 right-0 z-[999] flex flex-col touch-manipulation"
           style={{
             height: `${drawerHeight}px`,
-            paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+            paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
             transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
             borderTopLeftRadius: '24px',
             borderTopRightRadius: '24px',
@@ -838,22 +838,12 @@ const HomePage: React.FC = () => {
           onMouseUp={handleDrawerMouseUp}
         >
           <div className="flex-1 relative overflow-hidden w-full flex flex-col min-h-0" style={{ borderRadius: '24px 24px 0 0', paddingTop: '4px' }}>
-            {/* High-contrast pull strip — visible on LCD / older iPhones */}
-            <div className="shrink-0 flex flex-col items-center gap-1 px-3 pt-1 pb-1">
+            {/* Slim handle — does not add much height; primary affordance is the FAB */}
+            <div className="shrink-0 flex justify-center px-3 pt-0.5 pb-0">
               <div
-                className="h-2.5 w-[4.5rem] sm:w-20 rounded-full bg-white shadow-[0_2px_10px_rgba(0,0,0,0.28)] ring-2 ring-amber-900/15 border border-white/90"
+                className="h-1.5 w-14 sm:w-16 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20"
                 aria-hidden
               />
-              {!isExpanded && (
-                <>
-                  <p className="text-[11px] sm:text-xs font-extrabold text-amber-950 tracking-wide drop-shadow-sm">
-                    Browse shops
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] font-semibold text-amber-900/85 -mt-0.5">
-                    Tap here or swipe up
-                  </p>
-                </>
-              )}
             </div>
             {isExpanded ? (
               <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
@@ -930,49 +920,55 @@ const HomePage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000] pointer-events-auto">
+                  <div
+                    className="absolute right-2 sm:right-3 z-[1000] pointer-events-auto"
+                    style={{ bottom: 'max(6px, env(safe-area-inset-bottom, 0px))', top: 'auto', transform: 'none' }}
+                  >
                     <button
                       type="button"
                       onClick={toggleDrawer}
-                      className="min-h-11 min-w-11 w-11 h-11 bg-slate-900 rounded-full flex items-center justify-center text-white hover:bg-slate-800 active:scale-95 shadow-xl ring-2 ring-white/40 border border-white/30"
+                      className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.45)] ring-[3px] ring-white/90 border-2 border-white/50 motion-reduce:shadow-lg"
                       aria-label="Collapse shop list"
                     >
-                      <ChevronDown size={24} strokeWidth={3} />
+                      <ChevronDown size={26} strokeWidth={3} />
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex-1 min-h-0 w-full flex items-stretch px-3 sm:px-4 pb-0.5 no-drag" onClick={toggleDrawer}>
+              <div className="flex-1 min-h-0 w-full flex items-center px-3 sm:px-4 pb-1 no-drag pr-[4.5rem]" onClick={toggleDrawer}>
                 {selectedShop ? (
-                  <div className="flex items-center gap-3 text-white w-full min-w-0 pr-14">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-lg ring-1 ring-white/40">
-                      <MapPin size={22} className="sm:w-6 sm:h-6" />
+                  <div className="flex items-center gap-2 text-white w-full min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-md ring-1 ring-white/35">
+                      <MapPin size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-base sm:text-lg truncate text-white drop-shadow-md">{selectedShop.name}</h3>
-                      <p className="text-[11px] sm:text-xs text-white/95 font-semibold truncate drop-shadow">Tap again for details · tap bar to expand</p>
+                      <h3 className="font-bold text-sm sm:text-base truncate text-white drop-shadow">{selectedShop.name}</h3>
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium truncate drop-shadow">Tap again for details</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-white w-full min-w-0 pr-14">
-                    <MapPin size={18} className="flex-shrink-0 drop-shadow" />
-                    <span className="font-bold text-xs sm:text-sm leading-tight drop-shadow-md">
-                      Select a shop on the map — tap bar to expand
+                  <div className="flex items-center gap-2 text-white w-full min-w-0">
+                    <MapPin size={16} className="flex-shrink-0 drop-shadow" />
+                    <span className="font-bold text-[11px] sm:text-xs leading-tight drop-shadow">
+                      Select a shop on the map
                     </span>
                   </div>
                 )}
-                <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
+                <div
+                  className="absolute right-2 sm:right-3 z-[1000]"
+                  style={{ bottom: 'max(6px, env(safe-area-inset-bottom, 0px))', top: 'auto', transform: 'none' }}
+                >
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleDrawer();
                     }}
-                    className="min-h-11 min-w-11 w-11 h-11 bg-slate-900 rounded-full flex items-center justify-center text-white hover:bg-slate-800 active:scale-95 shadow-xl ring-2 ring-white/40 border border-white/30"
+                    className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 active:scale-95 shadow-[0_4px_22px_rgba(225,29,72,0.55)] ring-[3px] ring-white/95 border-2 border-white/60 animate-pulse motion-reduce:animate-none"
                     aria-label="Expand shop list"
                   >
-                    <ChevronUp size={24} strokeWidth={3} />
+                    <ChevronUp size={28} strokeWidth={3} />
                   </button>
                 </div>
               </div>
