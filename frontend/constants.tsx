@@ -19,7 +19,8 @@ export const TAG_CONFIG: Record<string, TagStyle> = {
   korean: { icon: '🇰🇷', bg: 'bg-white text-gray-800 border border-gray-200 shadow-sm', text: 'Korean' },
   promo: { icon: '🎁', bg: 'bg-gradient-to-r from-fuchsia-400 to-pink-500 text-white shadow-fuchsia-200', text: 'Promo' },
   spa: { icon: '🌿', bg: 'bg-gradient-to-r from-green-400 to-teal-500 text-white shadow-green-200', text: 'Spa' },
-  'adult doll seller': { icon: '🧸', bg: 'bg-gray-900 text-white shadow-gray-400', text: 'Adult doll seller' },
+  // Sensual / adult retail — avoid teddy-bear (reads as kids’ toy)
+  'adult doll seller': { icon: '💋', bg: 'bg-gradient-to-r from-rose-700 to-pink-700 text-white shadow-rose-400', text: 'Adult doll seller' },
   default: { icon: '', bg: 'bg-gray-800/90 text-white backdrop-blur-md shadow-gray-400', text: '' },
 };
 
