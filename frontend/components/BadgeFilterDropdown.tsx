@@ -71,8 +71,14 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
     );
   };
 
-  /** No tags selected = no badge filter (list all shops) */
+  /** Uncheck all in draft — apply with Confirm */
   const clearDraft = () => setDraftTags([]);
+
+  /** Apply “no badge filter” immediately and close (default: all shops visible) */
+  const handleShowAllShops = () => {
+    onChange([]);
+    setOpen(false);
+  };
 
   const handleCancel = () => {
     setOpen(false);
@@ -110,35 +116,29 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
           style={{ top: menuRect.top, left: menuRect.left, width: MENU_WIDTH }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex shrink-0 flex-col gap-1 border-b border-gray-100 p-2">
-            <div className="flex items-center justify-between gap-2">
-              <span id="badge-filter-title" className="text-xs font-semibold text-gray-600">
-                Filter by badge
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 p-2">
+            <span id="badge-filter-title" className="text-xs font-semibold text-gray-600">
+              Filter by badge
+            </span>
+            <div className="flex shrink-0 items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={handleShowAllShops}
+                className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-rose-400 decoration-2 underline-offset-2"
+              >
+                Show all shops
+              </button>
+              <span className="text-gray-300" aria-hidden>
+                ·
               </span>
-              <div className="flex shrink-0 items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={clearDraft}
-                  className="font-semibold text-gray-800 hover:text-gray-950 underline decoration-rose-400 decoration-2 underline-offset-2"
-                >
-                  Show all shops
-                </button>
-                <span className="text-gray-300" aria-hidden>
-                  ·
-                </span>
-                <button
-                  type="button"
-                  onClick={clearDraft}
-                  className="text-blue-600 hover:text-blue-800"
-                  title="Remove all badge ticks (same as Show all shops)"
-                >
-                  Clear picks
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={clearDraft}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                Clear picks
+              </button>
             </div>
-            <p className="text-[10px] leading-snug text-gray-500">
-              No checkboxes + Confirm = show every shop. Pick badges to narrow the list.
-            </p>
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {allTags.length === 0 ? (
