@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
-import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
@@ -17,7 +17,6 @@ import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
 import { Plus, Navigation, Filter, Share2, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
-import ShopStats from './pages/ShopStats'; // 👈 新增这一行
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
 import AssignAdsPage from './pages/AssignAdsPage';
@@ -991,6 +990,13 @@ const HomePage: React.FC = () => {
   );
 };
 
+/** Old /stats/:id links → shop detail (slug or numeric id both work on ShopDetailPage) */
+const StatsToShopRedirect: React.FC = () => {
+  const { shopId } = useParams<{ shopId: string }>();
+  if (!shopId) return <Navigate to="/" replace />;
+  return <Navigate to={`/shop/${encodeURIComponent(shopId)}`} replace />;
+};
+
 const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [authVersion, setAuthVersion] = useState(0);
@@ -1024,8 +1030,7 @@ const App: React.FC = () => {
         {/* :slug 是一个动态参数，可以匹配 relax, massage, abc 等任意值 */}
         <Route path="/shop/:slug" element={<ShopDetailPage />} />
 
-        {/* 统计页路由 */}
-        <Route path="/stats/:shopId" element={<ShopStats />} />
+        <Route path="/stats/:shopId" element={<StatsToShopRedirect />} />
         {/* 👇 新增：全站统计路由 */}
         <Route path="/admin/stats" element={<AdminStats />} />
         <Route path="/admin/assign-ads" element={<AssignAdsPage />} />
