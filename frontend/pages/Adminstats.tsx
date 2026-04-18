@@ -115,7 +115,7 @@ const AdminStats: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden touch-scroll-x">
+        <div className="bg-white rounded-lg shadow border border-gray-200/80 w-full max-w-full overflow-x-auto overscroll-x-contain touch-scroll-x [-webkit-overflow-scrolling:touch]">
           <table className="min-w-[760px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
