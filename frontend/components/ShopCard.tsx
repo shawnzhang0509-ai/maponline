@@ -888,7 +888,17 @@ const ShopCard: React.FC<ShopCardProps> = ({
 
       {/* 底部信息区 */}
       <div className="p-3 space-y-2">
-        <h3 className="font-bold text-gray-900 text-base truncate pr-6">{shop.name}</h3>
+        <div className="flex items-start justify-between gap-2 min-h-[1.25rem] pr-6">
+          <h3 className="font-bold text-gray-900 text-base truncate min-w-0 flex-1">{shop.name}</h3>
+          {shop.filter_city?.trim() ? (
+            <span
+              className="shrink-0 max-w-[45%] truncate rounded-md border border-rose-200/90 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-rose-700 sm:text-[11px]"
+              title={shop.filter_city.trim()}
+            >
+              {shop.filter_city.trim()}
+            </span>
+          ) : null}
+        </div>
         <div className="flex items-start gap-1.5 text-gray-500 text-xs leading-tight h-8 overflow-hidden">
           <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5 text-rose-400" />
           <p className="line-clamp-2">{shop.address}</p>
