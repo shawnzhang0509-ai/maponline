@@ -251,11 +251,11 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
-  /** Tight stack: safe-area + two compact chip rows */
+  /** Below two region rows (taller chips + larger type) */
   const badgeBarTopClass = useMemo(
     () =>
       allTags.length > 0
-        ? 'top-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
+        ? 'top-[calc(env(safe-area-inset-top,0px)+3.95rem)]'
         : '',
     [allTags.length]
   );
@@ -814,12 +814,12 @@ const HomePage: React.FC = () => {
   useEffect(() => { fetchShops(); }, []);
 
   return (
-    <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
-      {/* Region chips: transparent chrome so map shows through; two tight rows */}
-      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none">
-        <div className="max-w-7xl mx-auto px-1.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto">
+    <div className="relative h-screen w-full bg-transparent flex flex-col overflow-hidden">
+      {/* Region chips: no panel fill — only glass pills; map visible behind */}
+      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
+        <div className="max-w-7xl mx-auto px-0.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto bg-transparent">
           {[REGION_OPTIONS.slice(0, 4), REGION_OPTIONS.slice(4)].map((row, rowIdx) => (
-            <div key={rowIdx} className="flex justify-center gap-0.5 sm:gap-1.5 mb-0 last:mb-0">
+            <div key={rowIdx} className="flex justify-center gap-0 sm:gap-1.5 mb-px last:mb-0">
               {row.map((r) => {
                 const on = selectedRegions.includes(r);
                 return (
@@ -827,10 +827,10 @@ const HomePage: React.FC = () => {
                     key={r}
                     type="button"
                     onClick={() => toggleRegion(r)}
-                    className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-1 py-[1px] sm:px-2.5 sm:py-1 text-[8px] leading-tight sm:text-[11px] sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
+                    className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-0.5 py-0.5 sm:px-2.5 sm:py-1 text-[11px] leading-snug sm:text-sm sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
                       on
-                        ? 'bg-rose-600/95 text-white border-rose-500/90 shadow-sm'
-                        : 'bg-white/35 text-gray-900 border-white/50 shadow-sm hover:bg-white/45 hover:border-rose-300/80'
+                        ? 'bg-rose-600/90 text-white border-rose-500/85 shadow-sm'
+                        : 'bg-white/25 text-gray-900 border-white/40 shadow-sm hover:bg-white/40 hover:border-rose-300/70'
                     }`}
                   >
                     {r}
@@ -844,7 +844,7 @@ const HomePage: React.FC = () => {
 
       {allTags.length > 0 && (
         <div
-          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none ${badgeBarTopClass}`}
+          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
         >
           <div className="max-w-7xl mx-auto py-0 pointer-events-auto">
             <BadgeFilterDropdown
@@ -859,8 +859,8 @@ const HomePage: React.FC = () => {
       <div
         className={`flex-1 relative overflow-hidden ${
           allTags.length > 0
-            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.15rem)]'
-            : 'pt-[calc(env(safe-area-inset-top,0px)+3.2rem)]'
+            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]'
+            : 'pt-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
         }`}
       >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
