@@ -3,9 +3,30 @@ from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate  # <--- 修改点 1
 from flask_cors import CORS
+from sqlalchemy import inspect, text
 
 db = SQLAlchemy()
 migrate = Migrate()  # <--- 修改点 2
+
+
+def _ensure_shop_filter_city_column():
+    """
+    db.create_all() does not ALTER existing tables. If deploy skips migrations,
+    ORM queries fail (ProgrammingError / undefined column). Add missing column once.
+    """
+    try:
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("shop"):
+            return
+        names = {c["name"] for c in insp.get_columns("shop")}
+        if "filter_city" in names:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE shop ADD COLUMN filter_city VARCHAR(80)"))
+        print("✅ Added missing column shop.filter_city (schema sync)")
+    except Exception as e:
+        print(f"⚠️ shop.filter_city schema check skipped: {e}")
 
 def create_app():
     app = Flask(__name__)
@@ -72,9 +93,10 @@ def create_app():
     def serve_uploads(filename):
         return send_from_directory(app.config['FILES_FOLDER'], filename)
 
-    # 自动创建表结构
+    # 自动创建表结构；并对已存在的库补齐 ORM 新增列（避免未跑 migrate 时 ProgrammingError）
     with app.app_context():
         db.create_all()
+        _ensure_shop_filter_city_column()
 
     @app.route('/')
     def home():
