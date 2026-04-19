@@ -85,6 +85,12 @@ html, body {
   background: transparent !important;
 }
 
+/* Mitigate sub-pixel hairline gaps between OSM tiles on some mobile GPUs */
+.leaflet-tile-container img.leaflet-tile {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 /* 确保所有元素继承盒模型，防止 padding 撑大宽度 */
 *, *::before, *::after {
   box-sizing: inherit;

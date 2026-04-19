@@ -856,14 +856,15 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      <div
-        className={`flex-1 relative overflow-hidden ${
-          allTags.length > 0
-            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]'
-            : 'pt-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
-        }`}
-      >
-        <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
+      {/*
+        Map must fill this panel (absolute inset-0), not sit below padding-top —
+        otherwise the padded strip shows the page background (looks like a grey bar).
+        Region / badge rows float above the map with higher z-index.
+      */}
+      <div className="flex-1 relative overflow-hidden min-h-0">
+        <div className="absolute inset-0 z-0">
+          <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
+        </div>
 
         {showShareTooltip && (
           <button
