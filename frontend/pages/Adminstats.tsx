@@ -53,6 +53,15 @@ const AdminStats: React.FC = () => {
   const uniqueShopCount = new Set(stats.map((item) => String(item.shop_id))).size;
   const uniqueDateCount = new Set(stats.map((item) => item.date)).size;
 
+  const shopDetailPath = (name: string | undefined, shopId: string | number) => {
+    const slug = (name || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return slug ? `/shop/${encodeURIComponent(slug)}` : `/shop/${encodeURIComponent(String(shopId))}`;
+  };
+
   return (
     <div className="min-h-screen overflow-y-auto bg-gray-50">
       <div className="max-w-6xl mx-auto p-6">
@@ -115,7 +124,7 @@ const AdminStats: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden touch-scroll-x">
+        <div className="bg-white rounded-lg shadow border border-gray-200/80 w-full max-w-full overflow-x-auto overscroll-x-contain touch-scroll-x [-webkit-overflow-scrolling:touch]">
           <table className="min-w-[760px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -124,7 +133,7 @@ const AdminStats: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMS</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Call</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop page</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -152,7 +161,7 @@ const AdminStats: React.FC = () => {
                       {item.total}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-900">
-                      <Link to={`/stats/${item.shop_id}`}>View details →</Link>
+                      <Link to={shopDetailPath(item.shop_name, item.shop_id)}>View shop →</Link>
                     </td>
                   </tr>
                 ))
