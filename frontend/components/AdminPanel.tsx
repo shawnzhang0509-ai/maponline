@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Upload, Info, DollarSign } from 'lucide-react';
+import { X, Upload, Info, DollarSign, MapPin } from 'lucide-react';
 import { ShopCreate, Shop } from './types';
+import { REGION_OPTIONS } from '../constants/filterRegions';
 
 interface AdminPanelProps {
   onAddShop: (shop: Shop) => void;
@@ -22,7 +23,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     pictures: [],
     // 🔥 初始化新字段
     about_me: '',
-    additional_price: ''
+    additional_price: '',
+    filter_city: '',
   });
 
   const [tags, setTags] = useState<string[]>([]);
@@ -60,6 +62,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
     if (newShop.additional_price) {
       formData.append("additional_price", newShop.additional_price);
     }
+    if ((newShop.filter_city || '').trim()) {
+      formData.append("filter_city", (newShop.filter_city || '').trim());
+    }
 
     (newShop.pictures as File[] | undefined)?.forEach(file => {
       if (file instanceof File) formData.append("pictures", file);
@@ -93,7 +98,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
         badge_text: '',
         pictures: [],
         about_me: '',
-        additional_price: ''
+        additional_price: '',
+        filter_city: '',
       });
       setTags([]);
       setTagInput("");
@@ -250,6 +256,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onAddShop, onClose }) => {
                 onChange={e => setNewShop({ ...newShop, phone: e.target.value })}
                 placeholder="Mobile number for SMS"
               />
+            </div>
+
+            {/* Map region (home filter chips) */}
+            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <MapPin size={14} /> Map region
+              </label>
+              <select
+                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 focus:ring-2 focus:ring-rose-500 outline-none text-sm text-gray-800"
+                value={newShop.filter_city || ''}
+                onChange={(e) => setNewShop({ ...newShop, filter_city: e.target.value })}
+              >
+                <option value="">Not set</option>
+                {REGION_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 🔥 NEW: About Me */}

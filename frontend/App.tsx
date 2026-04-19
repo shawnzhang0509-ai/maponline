@@ -6,6 +6,7 @@ import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
 import Header from './components/Header';
+import { REGION_OPTIONS } from './constants/filterRegions';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
@@ -16,7 +17,7 @@ import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
-import { Plus, Navigation, Filter, Share2, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
+import { Plus, Navigation, Filter, Share2, Search, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
 import AssignAdsPage from './pages/AssignAdsPage';
@@ -40,7 +41,7 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
     : shop.new_girls_last_15_days
       ? 'New'
       : '';
-  return { ...shop, pictures, badge_text };
+  return { ...shop, pictures, badge_text, filter_city: shop.filter_city || '' };
 }
 
 /** Keep collapsed strip low so map stays large; affordance is the FAB + safe-area anchoring */
@@ -125,6 +126,13 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  /** Map region filter (OR); empty = all regions */
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
+  /** FAB + dropdown — treat as one control so second FAB click confirms, not “outside” */
+  const searchControlRef = useRef<HTMLDivElement>(null);
   const [pendingEditShopId, setPendingEditShopId] = useState<number | null>(null);
   const handledAutoEditKeyRef = useRef<string | null>(null);
   /** Any ShopCard edit modal is open — block drawer + horizontal list touch handlers */
@@ -239,6 +247,11 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
+  const badgeBarTopClass = useMemo(
+    () => (allTags.length > 0 ? 'top-[calc(3rem+2.75rem)]' : ''),
+    [allTags.length]
+  );
+
   const nearbyRangeTitle = useMemo(
     () => buildNearbyRangeTitle(nearbyCenterType, nearbyCenterName, radiusKm),
     [nearbyCenterType, nearbyCenterName, radiusKm]
@@ -260,6 +273,14 @@ const HomePage: React.FC = () => {
       result = result.filter((shop) =>
         getShopTags(shop).some((tag) => targetTags.has(tag))
       );
+    }
+
+    if (selectedRegions.length > 0) {
+      const regionSet = new Set(selectedRegions);
+      result = result.filter((shop) => {
+        const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
+        return fc && regionSet.has(fc);
+      });
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
@@ -310,7 +331,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -543,8 +564,52 @@ const HomePage: React.FC = () => {
       if (!res.ok) throw new Error('Network response was not ok');
       const raw = await res.json();
       setShops(raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL)));
+      setAppliedSearchKeyword(keyword.trim());
     } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
+  };
+
+  const openSearchPanel = () => {
+    setSearchDraft(appliedSearchKeyword);
+    setSearchPanelOpen(true);
+  };
+
+  const cancelSearchPanel = () => {
+    setSearchDraft(appliedSearchKeyword);
+    setSearchPanelOpen(false);
+  };
+
+  const confirmSearchPanel = () => {
+    const q = searchDraft.trim();
+    void handleSearch(q);
+    setSearchPanelOpen(false);
+  };
+
+  const handleSearchFabClick = () => {
+    if (searchPanelOpen) {
+      confirmSearchPanel();
+    } else {
+      openSearchPanel();
+    }
+  };
+
+  useEffect(() => {
+    if (!searchPanelOpen) return;
+    const onDoc = (e: PointerEvent) => {
+      const el = searchControlRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setSearchDraft(appliedSearchKeyword);
+        setSearchPanelOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDoc);
+    return () => document.removeEventListener('pointerdown', onDoc);
+  }, [searchPanelOpen, appliedSearchKeyword]);
+
+  const toggleRegion = (r: string) => {
+    setSelectedRegions((prev) =>
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+    );
   };
 
   const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean }) => {
@@ -720,14 +785,34 @@ const HomePage: React.FC = () => {
   return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       {/* 👇 这是关键：将按钮放在最顶部，并使用 fixed 定位和高 z-index */}
-      <Header isLoggedIn={isLoggedIn} username={username} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onSearch={handleSearch} isSearching={isSearching} />
-      
-      {/* 👇 在这里插入汉堡包按钮 👇 */}
-      {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
-      {/* 👆 插入结束 👆 */}
+      <Header />
+
+      <div className="absolute top-12 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none border-b border-gray-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 pointer-events-auto overflow-x-auto no-scrollbar flex gap-2 items-center">
+          {REGION_OPTIONS.map((r) => {
+            const on = selectedRegions.includes(r);
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => toggleRegion(r)}
+                className={`shrink-0 rounded-full px-3 py-1 text-[11px] sm:text-xs font-bold border transition whitespace-nowrap ${
+                  on
+                    ? 'bg-rose-600 text-white border-rose-600 shadow'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-rose-300'
+                }`}
+              >
+                {r}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {allTags.length > 0 && (
-        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div
+          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm ${badgeBarTopClass}`}
+        >
           <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
             <BadgeFilterDropdown
               allTags={allTags}
@@ -738,7 +823,9 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className={`flex-1 relative overflow-hidden ${allTags.length > 0 ? 'pt-[8.5rem]' : 'pt-[5.5rem]'}`}
+      >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
         {showShareTooltip && (
@@ -751,6 +838,43 @@ const HomePage: React.FC = () => {
         )}
 
         <div className="absolute top-4 right-4 z-[1001] flex flex-col gap-3 items-end">
+          <div ref={searchControlRef} className="relative flex flex-col items-end">
+            <button
+              type="button"
+              onClick={handleSearchFabClick}
+              className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
+              title={searchPanelOpen ? 'Search (confirm)' : 'Search shops'}
+              aria-expanded={searchPanelOpen}
+              aria-label={searchPanelOpen ? 'Confirm search' : 'Open search'}
+            >
+              {isSearching ? (
+                <span className="block h-6 w-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search className="w-6 h-6" strokeWidth={2.25} />
+              )}
+            </button>
+            {searchPanelOpen && (
+              <div
+                className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Shop name</label>
+                <input
+                  type="text"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmSearchPanel();
+                    if (e.key === 'Escape') cancelSearchPanel();
+                  }}
+                  placeholder="Search…"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  autoFocus
+                />
+              </div>
+            )}
+          </div>
+
           <button type="button" onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
           <button
             type="button"
@@ -804,7 +928,7 @@ const HomePage: React.FC = () => {
                 setSelectedShop(null);
                 setNearbyCenterType('USER');
                 setNearbyCenterName('');
-                setCenter({ lat: -50.8485, lng: 174.7633 });
+                setCenter(NZ_CENTER);
                 setZoom(5.5);
               }} 
               className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"

@@ -53,7 +53,8 @@ class ShopRepository:
             badge_text=data.get('badge_text'),
             new_girls_last_15_days=new_girls,
             about_me=data.get('about_me', ''),
-            additional_price=data.get('additional_price', '')
+            additional_price=data.get('additional_price', ''),
+            filter_city=(data.get('filter_city') or '').strip() or None,
         )
 
         self.db.session.add(shop)
@@ -92,6 +93,9 @@ class ShopRepository:
             shop.about_me = data['about_me']
         if 'additional_price' in data:
             shop.additional_price = data['additional_price']
+        if 'filter_city' in data:
+            fc = data.get('filter_city')
+            shop.filter_city = (fc or '').strip() or None
 
         # 3. 更新布尔字段
         new_girls = data.get("new_girls_last_15_days")

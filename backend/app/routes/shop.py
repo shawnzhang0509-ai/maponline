@@ -45,6 +45,7 @@ def _sanitize_shop_payload_for_role(data, user):
     if not _is_admin_user(user):
         cleaned.pop("badge_text", None)
         cleaned.pop("new_girls_last_15_days", None)
+        cleaned.pop("filter_city", None)
     return cleaned
 
 @shop_bp.route('/search', methods=['GET'])

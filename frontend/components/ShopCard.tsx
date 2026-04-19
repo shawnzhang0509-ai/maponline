@@ -4,6 +4,7 @@ import { MessageCircle, MapPin, Phone, Upload, X, Check } from 'lucide-react';
 import { Shop, ShopEdit } from '../types';
 import { dmsToDecimal } from '../utils/geoUtils';
 import { getTagStyle } from '../constants';
+import { REGION_OPTIONS } from '../constants/filterRegions';
 
 interface ShopCardProps {
   shop: Shop;
@@ -209,6 +210,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
     // 👇 这里必须用 about_me 和 additional_price
     about_me: shop.about_me || '', 
     additional_price: shop.additional_price || '',
+    filter_city: (shop as Shop & { filter_city?: string }).filter_city || '',
     
     newPictures: [],
     removePictureIds: [],
@@ -284,6 +286,9 @@ const ShopCard: React.FC<ShopCardProps> = ({
     formData.append('additional_price', editData.additional_price || '');
 
     formData.append('badge_text', editData.badge_text || '');
+    if (isAdmin) {
+      formData.append('filter_city', editData.filter_city || '');
+    }
     formData.append('new_girls_last_15_days', editData.new_girls_last_15_days ? '1' : '0');
     formData.append('remove_picture_ids', editData.removePictureIds.join(','));
 
@@ -333,6 +338,7 @@ const ShopCard: React.FC<ShopCardProps> = ({
         // 确保返回数据也包含正确的字段名
         about_me: editData.about_me,
         additional_price: editData.additional_price,
+        filter_city: editData.filter_city || '',
       };
 
       onSave(finalData);
@@ -342,7 +348,8 @@ const ShopCard: React.FC<ShopCardProps> = ({
         newPictures: [], 
         removePictureIds: [],
         about_me: editData.about_me,
-        additional_price: editData.additional_price
+        additional_price: editData.additional_price,
+        filter_city: editData.filter_city || '',
       }));
       setIsEditing(false);
       setShowConfirmSave(false);
@@ -484,6 +491,26 @@ const ShopCard: React.FC<ShopCardProps> = ({
                 className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+
+            {/* MAP REGION (admin only) */}
+            {isAdmin && (
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">MAP REGION</label>
+                <select
+                  value={editData.filter_city || ''}
+                  onChange={(e) => setEditData({ ...editData, filter_city: e.target.value })}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full text-sm p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">— Not set —</option>
+                  {REGION_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* COORDINATES */}
             <div className="bg-gray-50 p-3 rounded-lg border">
