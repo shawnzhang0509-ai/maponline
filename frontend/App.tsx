@@ -5,7 +5,6 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSear
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
-import Header from './components/Header';
 import { REGION_OPTIONS } from './constants/filterRegions';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
 import MapComponent from './components/MapComponent';
@@ -247,8 +246,12 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
+  /** Below region chip block (no blank header; height ≈ safe-area + two chip rows) */
   const badgeBarTopClass = useMemo(
-    () => (allTags.length > 0 ? 'top-[calc(3rem+2.75rem)]' : ''),
+    () =>
+      allTags.length > 0
+        ? 'top-[calc(env(safe-area-inset-top,0px)+4.35rem)]'
+        : '',
     [allTags.length]
   );
 
@@ -784,36 +787,38 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
-      {/* 👇 这是关键：将按钮放在最顶部，并使用 fixed 定位和高 z-index */}
-      <Header />
-
-      <div className="absolute top-12 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none border-b border-gray-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 pointer-events-auto overflow-x-auto no-scrollbar flex gap-2 items-center">
-          {REGION_OPTIONS.map((r) => {
-            const on = selectedRegions.includes(r);
-            return (
-              <button
-                key={r}
-                type="button"
-                onClick={() => toggleRegion(r)}
-                className={`shrink-0 rounded-full px-3 py-1 text-[11px] sm:text-xs font-bold border transition whitespace-nowrap ${
-                  on
-                    ? 'bg-rose-600 text-white border-rose-600 shadow'
-                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-rose-300'
-                }`}
-              >
-                {r}
-              </button>
-            );
-          })}
+      {/* Region chips: flush under status bar, two rows, no full-width white bar */}
+      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none">
+        <div className="max-w-7xl mx-auto px-1.5 sm:px-3 pt-[max(4px,env(safe-area-inset-top,0px))] pb-1 pointer-events-auto">
+          {[REGION_OPTIONS.slice(0, 4), REGION_OPTIONS.slice(4)].map((row, rowIdx) => (
+            <div key={rowIdx} className="flex justify-center gap-1 sm:gap-1.5 mb-0.5 last:mb-0">
+              {row.map((r) => {
+                const on = selectedRegions.includes(r);
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => toggleRegion(r)}
+                    className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-1 py-0.5 sm:px-2.5 sm:py-1 text-[8px] leading-tight sm:text-[11px] sm:leading-normal font-bold border transition text-center ${
+                      on
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                        : 'bg-white/90 text-gray-800 border-gray-200/90 shadow-sm hover:border-rose-300'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
       {allTags.length > 0 && (
         <div
-          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm ${badgeBarTopClass}`}
+          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none ${badgeBarTopClass}`}
         >
-          <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
+          <div className="max-w-7xl mx-auto py-1 pointer-events-auto">
             <BadgeFilterDropdown
               allTags={allTags}
               selectedTags={selectedTags}
@@ -824,7 +829,11 @@ const HomePage: React.FC = () => {
       )}
 
       <div
-        className={`flex-1 relative overflow-hidden ${allTags.length > 0 ? 'pt-[8.5rem]' : 'pt-[5.5rem]'}`}
+        className={`flex-1 relative overflow-hidden ${
+          allTags.length > 0
+            ? 'pt-[calc(env(safe-area-inset-top,0px)+6.1rem)]'
+            : 'pt-[calc(env(safe-area-inset-top,0px)+3.65rem)]'
+        }`}
       >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
