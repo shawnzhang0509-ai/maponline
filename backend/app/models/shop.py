@@ -19,6 +19,7 @@ class Shop(db.Model):
     # 👇 新增这两个字段
     about_me = db.Column(db.Text, nullable=True) 
     additional_price = db.Column(db.String(200), nullable=True)
+    filter_city = db.Column(db.String(80), nullable=True)
 
     # 关联图片
     pictures = db.relationship(
@@ -56,6 +57,7 @@ class Shop(db.Model):
             # 👇 新增字段 (这里会有值了)
             'about_me': self.about_me,
             'additional_price': self.additional_price,
+            'filter_city': self.filter_city,
             # 👇 使用转换后的图片数据 (而不是原始对象)
             'pictures': pics_data,
             'can_edit': False
