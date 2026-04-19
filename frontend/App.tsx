@@ -139,6 +139,11 @@ const HomePage: React.FC = () => {
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
+  /** Live height during drawer drag (state updates async; end handler needs this) */
+  const drawerHeightRef = useRef(COLLAPSED_HEIGHT);
+  useEffect(() => {
+    drawerHeightRef.current = drawerHeight;
+  }, [drawerHeight]);
 
   // 1. 原有的 URL 处理逻辑 (保持不变)
   useEffect(() => {
@@ -246,11 +251,11 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
-  /** Tight stack: safe-area + two compact chip rows */
+  /** Below two region rows (taller chips + larger type) */
   const badgeBarTopClass = useMemo(
     () =>
       allTags.length > 0
-        ? 'top-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
+        ? 'top-[calc(env(safe-area-inset-top,0px)+3.95rem)]'
         : '',
     [allTags.length]
   );
@@ -476,12 +481,25 @@ const HomePage: React.FC = () => {
   const startY = useRef(0);
   const startHeight = useRef(0);
 
+  const resolveDrawerSnap = (currentHeight: number) => {
+    const range = EXPANDED_HEIGHT - COLLAPSED_HEIGHT;
+    const snapUpThreshold = COLLAPSED_HEIGHT + range * 0.42;
+    return currentHeight > snapUpThreshold ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  };
+
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
     if (shopCardEditOpen) return;
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('button')) return;
+    const onHandle = !!el.closest('.drawer-drag-handle');
+    if (drawerHeightRef.current > COLLAPSED_HEIGHT + 50) {
+      if (!onHandle) return;
+    } else if (el.closest('.no-drag')) {
+      return;
+    }
     isDraggingDrawer.current = true;
     startY.current = e.touches[0].clientY;
-    startHeight.current = drawerHeight;
+    startHeight.current = drawerHeightRef.current;
     stopAutoScroll();
   };
   const handleDrawerTouchMove = (e: React.TouchEvent) => {
@@ -490,23 +508,31 @@ const HomePage: React.FC = () => {
     let newHeight = startHeight.current + deltaY;
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
+    drawerHeightRef.current = newHeight;
     setDrawerHeight(newHeight);
   };
   const handleDrawerTouchEnd = () => {
     if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
-    const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
-    const willExpand = drawerHeight > threshold;
-    setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+    const next = resolveDrawerSnap(drawerHeightRef.current);
+    setDrawerHeight(next);
+    const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
     else stopAutoScroll();
   };
   const handleDrawerMouseDown = (e: React.MouseEvent) => {
     if (shopCardEditOpen) return;
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('button')) return;
+    const onHandle = !!el.closest('.drawer-drag-handle');
+    if (drawerHeightRef.current > COLLAPSED_HEIGHT + 50) {
+      if (!onHandle) return;
+    } else if (el.closest('.no-drag')) {
+      return;
+    }
     isDraggingDrawer.current = true;
     startY.current = e.clientY;
-    startHeight.current = drawerHeight;
+    startHeight.current = drawerHeightRef.current;
     stopAutoScroll();
     window.addEventListener('mousemove', handleDrawerMouseMove);
     window.addEventListener('mouseup', handleDrawerMouseUp);
@@ -517,15 +543,17 @@ const HomePage: React.FC = () => {
     let newHeight = startHeight.current + deltaY;
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
+    drawerHeightRef.current = newHeight;
     setDrawerHeight(newHeight);
   };
   const handleDrawerMouseUp = () => {
+    if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
     window.removeEventListener('mousemove', handleDrawerMouseMove);
     window.removeEventListener('mouseup', handleDrawerMouseUp);
-    const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
-    const willExpand = drawerHeight > threshold;
-    setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+    const next = resolveDrawerSnap(drawerHeightRef.current);
+    setDrawerHeight(next);
+    const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
     else stopAutoScroll();
   };
@@ -786,12 +814,12 @@ const HomePage: React.FC = () => {
   useEffect(() => { fetchShops(); }, []);
 
   return (
-    <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
-      {/* Region chips: transparent chrome so map shows through; two tight rows */}
-      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none">
-        <div className="max-w-7xl mx-auto px-1.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto">
+    <div className="relative h-screen w-full bg-transparent flex flex-col overflow-hidden">
+      {/* Region chips: no panel fill — only glass pills; map visible behind */}
+      <div className="absolute top-0 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none bg-transparent">
+        <div className="max-w-7xl mx-auto px-0.5 sm:px-3 pt-[max(2px,env(safe-area-inset-top,0px))] pb-0 pointer-events-auto bg-transparent">
           {[REGION_OPTIONS.slice(0, 4), REGION_OPTIONS.slice(4)].map((row, rowIdx) => (
-            <div key={rowIdx} className="flex justify-center gap-0.5 sm:gap-1.5 mb-0 last:mb-0">
+            <div key={rowIdx} className="flex justify-center gap-0 sm:gap-1.5 mb-px last:mb-0">
               {row.map((r) => {
                 const on = selectedRegions.includes(r);
                 return (
@@ -799,10 +827,10 @@ const HomePage: React.FC = () => {
                     key={r}
                     type="button"
                     onClick={() => toggleRegion(r)}
-                    className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-1 py-[1px] sm:px-2.5 sm:py-1 text-[8px] leading-tight sm:text-[11px] sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
+                    className={`min-w-0 flex-1 max-w-[25%] sm:max-w-none sm:flex-initial rounded-md sm:rounded-full px-0.5 py-0.5 sm:px-2.5 sm:py-1 text-[11px] leading-snug sm:text-sm sm:leading-normal font-bold border transition text-center backdrop-blur-sm ${
                       on
-                        ? 'bg-rose-600/95 text-white border-rose-500/90 shadow-sm'
-                        : 'bg-white/35 text-gray-900 border-white/50 shadow-sm hover:bg-white/45 hover:border-rose-300/80'
+                        ? 'bg-rose-600/90 text-white border-rose-500/85 shadow-sm'
+                        : 'bg-white/25 text-gray-900 border-white/40 shadow-sm hover:bg-white/40 hover:border-rose-300/70'
                     }`}
                   >
                     {r}
@@ -816,7 +844,7 @@ const HomePage: React.FC = () => {
 
       {allTags.length > 0 && (
         <div
-          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none ${badgeBarTopClass}`}
+          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-3 pointer-events-none bg-transparent ${badgeBarTopClass}`}
         >
           <div className="max-w-7xl mx-auto py-0 pointer-events-auto">
             <BadgeFilterDropdown
@@ -831,8 +859,8 @@ const HomePage: React.FC = () => {
       <div
         className={`flex-1 relative overflow-hidden ${
           allTags.length > 0
-            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.15rem)]'
-            : 'pt-[calc(env(safe-area-inset-top,0px)+3.2rem)]'
+            ? 'pt-[calc(env(safe-area-inset-top,0px)+5.45rem)]'
+            : 'pt-[calc(env(safe-area-inset-top,0px)+3.55rem)]'
         }`}
       >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
@@ -971,19 +999,20 @@ const HomePage: React.FC = () => {
           onMouseUp={handleDrawerMouseUp}
         >
           <div className="flex-1 relative overflow-hidden w-full flex flex-col min-h-0" style={{ borderRadius: '24px 24px 0 0', paddingTop: '4px' }}>
-            {/* Slim handle — does not add much height; primary affordance is the FAB */}
-            <div className="shrink-0 flex justify-center px-3 pt-0.5 pb-0">
+            {/* Drag handle: large touch target; swipe down to collapse (FAB still works) */}
+            <div className="drawer-drag-handle shrink-0 flex justify-center px-3 pt-1 pb-2 cursor-grab active:cursor-grabbing touch-none">
               <div
-                className="h-1.5 w-14 sm:w-16 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20"
+                className="h-1.5 w-16 sm:w-20 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20 pointer-events-none"
                 aria-hidden
               />
+              <span className="sr-only">Drag down to minimise the list</span>
             </div>
             {isExpanded ? (
               <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
                 {useNearbyFilter && userLocation && (
-                  <div className="shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] pointer-events-none">
+                  <div className="drawer-drag-handle shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] touch-none cursor-grab active:cursor-grabbing">
                     <div
-                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80"
+                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80 pointer-events-none"
                       role="status"
                       aria-live="polite"
                     >
