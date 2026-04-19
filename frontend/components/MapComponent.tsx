@@ -155,6 +155,10 @@ const MapComponent: React.FC<MapComponentProps> = ({
       maxZoom: 19,
     }).addTo(mapRef.current);
 
+    requestAnimationFrame(() => {
+      mapRef.current?.invalidateSize({ animate: false });
+    });
+
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
