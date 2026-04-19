@@ -8,6 +8,8 @@ export interface ShopBase {
   phone: string;
   new_girls_last_15_days?: boolean;
   badge_text: string;
+  /** Admin-only: fixed region for map filter (see REGION_OPTIONS) */
+  filter_city?: string;
   can_edit?: boolean;
 }
 

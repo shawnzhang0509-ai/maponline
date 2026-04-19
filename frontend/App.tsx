@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // 1. 引入刚才写的汉堡包按钮
 import HamburgerButton from './components/HamburgerButton'; 
-import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AgeVerificationModal from './components/AgeVerificationModal';
 import TermsPage from './pages/TermsPage'; 
 import AboutPage from './pages/AboutPage';
 import Header from './components/Header';
+import { REGION_OPTIONS } from './constants/filterRegions';
 import SidebarMenu from './components/SidebarMenu'; // 引入侧边栏
 import MapComponent from './components/MapComponent';
 import ShopCard from './components/ShopCard';
@@ -16,14 +17,14 @@ import { NZ_CENTER } from './constants';
 import { calculateDistance } from './utils';
 import LoginPanel from './components/LoginPanel';
 import ImagePreviewModal from './components/ImagePreviewPanel';
-import { Plus, Navigation, Filter, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
-import ShopStats from './pages/ShopStats'; // 👈 新增这一行
+import { Plus, Navigation, Filter, Share2, Search, X, ChevronUp, ChevronDown, MapPin } from 'lucide-react';
 import AdminStats from './pages/Adminstats';
 import MyAdsPage from './pages/MyAdsPage';
 import AssignAdsPage from './pages/AssignAdsPage';
 import BadgeFilterDropdown from './components/BadgeFilterDropdown';
 
 const STORAGE_KEY = 'nz_massage_shops_v1';
+const SHARE_TOOLTIP_SEEN_KEY = 'nz_share_tooltip_seen_v1';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 /** Align list payload with UI: picture URLs, and badge_text fallback from new_girls_last_15_days */
@@ -40,14 +41,30 @@ function normalizeShopFromApi(shop: any, apiBase: string): Shop {
     : shop.new_girls_last_15_days
       ? 'New'
       : '';
-  return { ...shop, pictures, badge_text };
+  return { ...shop, pictures, badge_text, filter_city: shop.filter_city || '' };
 }
 
-const COLLAPSED_HEIGHT = 80; 
-const EXPANDED_HEIGHT = 380; 
+/** Keep collapsed strip low so map stays large; affordance is the FAB + safe-area anchoring */
+const COLLAPSED_HEIGHT = 84;
+const EXPANDED_HEIGHT = 380;
 const CLICK_THRESHOLD = 5; 
 const AUTO_SCROLL_SPEED = 0.8; 
 const RESUME_DELAY = 2500; 
+
+export type NearbyCenterType = 'USER' | 'SHOP';
+
+function buildNearbyRangeTitle(
+  centerType: NearbyCenterType,
+  centerName: string,
+  radiusKm: number
+): string {
+  const xx = radiusKm;
+  if (centerType === 'USER') {
+    return `Shops near you within ${xx}km`;
+  }
+  const name = (centerName || 'this shop').trim();
+  return `Shops surrounding ${name} within ${xx}km`;
+}
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -81,11 +98,23 @@ const HomePage: React.FC = () => {
     return false;
   });
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showShareTooltip, setShowShareTooltip] = useState(false);
 
+  const dismissShareTooltip = () => {
+    try {
+      localStorage.setItem(SHARE_TOOLTIP_SEEN_KEY, 'true');
+    } catch {
+      /* ignore */
+    }
+    setShowShareTooltip(false);
+  };
 
   const [showCreateAd, setShowCreateAd] = useState(false);
   const [useNearbyFilter, setUseNearbyFilter] = useState(false);
   const [radiusKm, setRadiusKm] = useState(10);
+  /** What the distance filter is centered on (GPS vs a shop as anchor) */
+  const [nearbyCenterType, setNearbyCenterType] = useState<NearbyCenterType>('USER');
+  const [nearbyCenterName, setNearbyCenterName] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showLogin, setShowLogin] = useState(false);
   
@@ -97,8 +126,17 @@ const HomePage: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  /** Map region filter (OR); empty = all regions */
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('');
+  /** FAB + dropdown — treat as one control so second FAB click confirms, not “outside” */
+  const searchControlRef = useRef<HTMLDivElement>(null);
   const [pendingEditShopId, setPendingEditShopId] = useState<number | null>(null);
   const handledAutoEditKeyRef = useRef<string | null>(null);
+  /** Any ShopCard edit modal is open — block drawer + horizontal list touch handlers */
+  const [shopCardEditOpen, setShopCardEditOpen] = useState(false);
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
@@ -119,12 +157,17 @@ const HomePage: React.FC = () => {
         const target = shops.find(s => s.id.toString() === focusId || s.id === parseInt(focusId));
         if (target) {
           setSelectedShop(target);
+          setNearbyCenterType('SHOP');
+          setNearbyCenterName(target.name || '');
           setTimeout(() => setDrawerHeight(EXPANDED_HEIGHT), 100);
           if (autoEditKey && handledAutoEditKeyRef.current !== autoEditKey) {
             setPendingEditShopId(target.id);
             handledAutoEditKeyRef.current = autoEditKey;
           }
         }
+      } else {
+        setNearbyCenterType('USER');
+        setNearbyCenterName('');
       }
     }
     if (!autoEditKey) {
@@ -139,6 +182,17 @@ const HomePage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [isAgeVerified]);
+
+  // First visit after age gate: show share hint once
+  useEffect(() => {
+    if (!isAgeVerified || showAgeModal) return;
+    try {
+      if (localStorage.getItem(SHARE_TOOLTIP_SEEN_KEY) === 'true') return;
+    } catch {
+      return;
+    }
+    setShowShareTooltip(true);
+  }, [isAgeVerified, showAgeModal]);
 
   // 3. ✅ 新增：处理确认函数 (独立函数)
   const handleAgeConfirm = () => {
@@ -193,6 +247,16 @@ const HomePage: React.FC = () => {
     return Array.from(tagSet).sort();
   }, [shops]);
 
+  const badgeBarTopClass = useMemo(
+    () => (allTags.length > 0 ? 'top-[calc(3rem+2.75rem)]' : ''),
+    [allTags.length]
+  );
+
+  const nearbyRangeTitle = useMemo(
+    () => buildNearbyRangeTitle(nearbyCenterType, nearbyCenterName, radiusKm),
+    [nearbyCenterType, nearbyCenterName, radiusKm]
+  );
+
   const filteredShops = useMemo(() => {
     let result = [...shops];
     // 1. 【核心】先执行距离过滤
@@ -209,6 +273,14 @@ const HomePage: React.FC = () => {
       result = result.filter((shop) =>
         getShopTags(shop).some((tag) => targetTags.has(tag))
       );
+    }
+
+    if (selectedRegions.length > 0) {
+      const regionSet = new Set(selectedRegions);
+      result = result.filter((shop) => {
+        const fc = (shop as Shop & { filter_city?: string }).filter_city?.trim();
+        return fc && regionSet.has(fc);
+      });
     }
 
     // 3. ✅ 新增：综合排序逻辑 (优先级 > 距离)
@@ -259,7 +331,7 @@ const HomePage: React.FC = () => {
     }
 
     return result;
-  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedShop]);
+  }, [shops, useNearbyFilter, userLocation, radiusKm, selectedTags, selectedRegions, selectedShop]);
 
   // Scrolling Logic
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -310,6 +382,7 @@ const HomePage: React.FC = () => {
   }, [isExpanded, filteredShops.length, selectedShop]);
 
   const handleListDragStart = (clientX: number) => {
+    if (shopCardEditOpen) return;
     isDraggingList.current = true;
     isPausedByUser.current = true;
     startX.current = clientX;
@@ -347,6 +420,13 @@ const HomePage: React.FC = () => {
     scheduleResume();
   };
 
+  useEffect(() => {
+    if (!shopCardEditOpen) return;
+    stopAutoScroll();
+    if (isDraggingList.current) handleListMouseUp();
+    isDraggingDrawer.current = false;
+  }, [shopCardEditOpen]);
+
   // Two-Step Click Logic
   const handleCardClick = (shop: Shop, currentEventClientX: number) => {
     const distance = Math.abs(currentEventClientX - dragStartX.current);
@@ -362,6 +442,8 @@ const HomePage: React.FC = () => {
     if (!useNearbyFilter) {
       setUseNearbyFilter(true);
       setUserLocation({ lat: shop.lat, lng: shop.lng });
+      setNearbyCenterType('SHOP');
+      setNearbyCenterName(shop.name || '');
       setRadiusKm(5);
     }
     if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
@@ -377,6 +459,8 @@ const HomePage: React.FC = () => {
        if (!useNearbyFilter) {
           setUseNearbyFilter(true);
           setUserLocation({ lat: shop.lat, lng: shop.lng });
+          setNearbyCenterType('SHOP');
+          setNearbyCenterName(shop.name || '');
        }
        if (!isExpanded) setDrawerHeight(EXPANDED_HEIGHT);
        stopAutoScroll();
@@ -390,6 +474,7 @@ const HomePage: React.FC = () => {
   const startHeight = useRef(0);
 
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
+    if (shopCardEditOpen) return;
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
     isDraggingDrawer.current = true;
     startY.current = e.touches[0].clientY;
@@ -414,6 +499,7 @@ const HomePage: React.FC = () => {
     else stopAutoScroll();
   };
   const handleDrawerMouseDown = (e: React.MouseEvent) => {
+    if (shopCardEditOpen) return;
     if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
     isDraggingDrawer.current = true;
     startY.current = e.clientY;
@@ -478,8 +564,52 @@ const HomePage: React.FC = () => {
       if (!res.ok) throw new Error('Network response was not ok');
       const raw = await res.json();
       setShops(raw.map((shop: any) => normalizeShopFromApi(shop, API_BASE_URL)));
+      setAppliedSearchKeyword(keyword.trim());
     } catch (err) { alert("Search failed"); } 
     finally { setIsSearching(false); }
+  };
+
+  const openSearchPanel = () => {
+    setSearchDraft(appliedSearchKeyword);
+    setSearchPanelOpen(true);
+  };
+
+  const cancelSearchPanel = () => {
+    setSearchDraft(appliedSearchKeyword);
+    setSearchPanelOpen(false);
+  };
+
+  const confirmSearchPanel = () => {
+    const q = searchDraft.trim();
+    void handleSearch(q);
+    setSearchPanelOpen(false);
+  };
+
+  const handleSearchFabClick = () => {
+    if (searchPanelOpen) {
+      confirmSearchPanel();
+    } else {
+      openSearchPanel();
+    }
+  };
+
+  useEffect(() => {
+    if (!searchPanelOpen) return;
+    const onDoc = (e: PointerEvent) => {
+      const el = searchControlRef.current;
+      if (el && !el.contains(e.target as Node)) {
+        setSearchDraft(appliedSearchKeyword);
+        setSearchPanelOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDoc);
+    return () => document.removeEventListener('pointerdown', onDoc);
+  }, [searchPanelOpen, appliedSearchKeyword]);
+
+  const toggleRegion = (r: string) => {
+    setSelectedRegions((prev) =>
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+    );
   };
 
   const handleLoginSuccess = (payload: { username: string; token: string; isAdmin: boolean }) => {
@@ -501,6 +631,52 @@ const HomePage: React.FC = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('is_admin');
   };
+
+  const handleShareMap = async () => {
+    dismissShareTooltip();
+    // Plain https link only (no hash) — WeChat/Android often mis-handle share({ title, text, url }) as a file
+    let shareUrl = '';
+    if (typeof window !== 'undefined') {
+      try {
+        const u = new URL(window.location.href);
+        shareUrl = `${u.origin}${u.pathname}${u.search}`;
+      } catch {
+        shareUrl = window.location.href.split('#')[0];
+      }
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ url: shareUrl });
+        return;
+      } catch {
+        /* user cancelled or url-only unsupported */
+      }
+      try {
+        await navigator.share({ text: shareUrl });
+        return;
+      } catch {
+        /* fall through to clipboard */
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Link copied — share it with a friend!');
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = shareUrl;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert('Link copied — share it with a friend!');
+      } catch {
+        alert(shareUrl || 'Unable to copy link');
+      }
+    }
+  };
   
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -521,6 +697,8 @@ const HomePage: React.FC = () => {
 
         // 1. 更新用户位置 (红点)
         setUserLocation(newLoc);
+        setNearbyCenterType('USER');
+        setNearbyCenterName('');
         
         // 2. 开启附近过滤
         setUseNearbyFilter(true); 
@@ -607,14 +785,34 @@ const HomePage: React.FC = () => {
   return (
     <div className="relative h-screen w-full bg-gray-50 flex flex-col overflow-hidden">
       {/* 👇 这是关键：将按钮放在最顶部，并使用 fixed 定位和高 z-index */}
-      <Header isLoggedIn={isLoggedIn} username={username} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onSearch={handleSearch} isSearching={isSearching} />
-      
-      {/* 👇 在这里插入汉堡包按钮 👇 */}
-      {/* 注意：z-[1000] 是为了确保按钮浮在所有内容（包括标签栏）之上 */}
-      {/* 👆 插入结束 👆 */}
+      <Header />
+
+      <div className="absolute top-12 left-0 right-[72px] sm:right-0 z-[996] pointer-events-none border-b border-gray-200/90 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 pointer-events-auto overflow-x-auto no-scrollbar flex gap-2 items-center">
+          {REGION_OPTIONS.map((r) => {
+            const on = selectedRegions.includes(r);
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => toggleRegion(r)}
+                className={`shrink-0 rounded-full px-3 py-1 text-[11px] sm:text-xs font-bold border transition whitespace-nowrap ${
+                  on
+                    ? 'bg-rose-600 text-white border-rose-600 shadow'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-rose-300'
+                }`}
+              >
+                {r}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {allTags.length > 0 && (
-        <div className="absolute top-[70px] left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div
+          className={`absolute left-0 right-[72px] sm:right-0 z-[996] px-2 sm:px-4 pointer-events-none bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm ${badgeBarTopClass}`}
+        >
           <div className="max-w-7xl mx-auto py-2 pointer-events-auto">
             <BadgeFilterDropdown
               allTags={allTags}
@@ -625,19 +823,97 @@ const HomePage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className={`flex-1 relative overflow-hidden ${allTags.length > 0 ? 'pt-[8.5rem]' : 'pt-[5.5rem]'}`}
+      >
         <MapComponent shops={filteredShops} center={userLocation || NZ_CENTER} zoom={zoom} selectedShop={selectedShop} userLocation={userLocation} onMarkerClick={handleMarkerClick} radiusKm={useNearbyFilter && userLocation ? radiusKm : 0} />
 
-        <div className="absolute top-4 right-4 z-[999] flex flex-col gap-3">
-          <button onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
+        {showShareTooltip && (
           <button
+            type="button"
+            aria-label="Dismiss share tip"
+            className="fixed inset-0 z-[998] bg-transparent cursor-default"
+            onClick={dismissShareTooltip}
+          />
+        )}
+
+        <div className="absolute top-4 right-4 z-[1001] flex flex-col gap-3 items-end">
+          <div ref={searchControlRef} className="relative flex flex-col items-end">
+            <button
+              type="button"
+              onClick={handleSearchFabClick}
+              className={`p-3 rounded-full shadow-lg ${searchPanelOpen ? 'bg-rose-600 text-white' : 'bg-white text-gray-800'}`}
+              title={searchPanelOpen ? 'Search (confirm)' : 'Search shops'}
+              aria-expanded={searchPanelOpen}
+              aria-label={searchPanelOpen ? 'Confirm search' : 'Open search'}
+            >
+              {isSearching ? (
+                <span className="block h-6 w-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search className="w-6 h-6" strokeWidth={2.25} />
+              )}
+            </button>
+            {searchPanelOpen && (
+              <div
+                className="absolute right-0 top-[calc(100%+8px)] w-[min(calc(100vw-5rem),18rem)] rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl z-[10002]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Shop name</label>
+                <input
+                  type="text"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmSearchPanel();
+                    if (e.key === 'Escape') cancelSearchPanel();
+                  }}
+                  placeholder="Search…"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  autoFocus
+                />
+              </div>
+            )}
+          </div>
+
+          <button type="button" onClick={requestLocation} className={`p-3 rounded-full shadow-lg ${userLocation ? 'bg-blue-500 text-white' : 'bg-white'}`}><Navigation className="w-6 h-6" /></button>
+          <button
+            type="button"
             onClick={handleCreateAdClick}
             className="p-3 bg-white text-rose-500 rounded-full shadow-lg"
             title={!isLoggedIn ? 'Login to add ad' : (isAdmin ? 'Add your ad' : 'Admin-only: assign required')}
           >
             <Plus className="w-6 h-6" />
           </button>
-          <button onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
+          <button type="button" onClick={() => setUseNearbyFilter(!useNearbyFilter)} className={`p-3 rounded-full shadow-lg ${useNearbyFilter ? 'bg-green-500 text-white' : 'bg-white'}`}><Filter className="w-6 h-6" /></button>
+
+          <div className="relative flex items-center mt-0.5">
+            {showShareTooltip && (
+              <div
+                className="absolute right-[calc(100%+10px)] top-1/2 -translate-y-1/2 w-[min(calc(100vw-6rem),220px)] pointer-events-none text-left"
+                role="tooltip"
+              >
+                <div className="relative rounded-2xl bg-white px-3.5 py-2.5 shadow-xl border border-rose-100/80">
+                  <div
+                    className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-r border-t border-rose-100/80 rotate-45"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-bold text-rose-600 leading-tight pr-1">Share the Love</p>
+                  <p className="text-[11px] text-gray-600 leading-snug mt-1 pr-1">
+                    Know a friend who needs a massage? Send them this spot!
+                  </p>
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleShareMap}
+              className="relative p-3 rounded-full shadow-lg bg-gradient-to-br from-orange-400 via-rose-400 to-pink-300 text-white animate-share-fab-pulse ring-2 ring-white/90"
+              title="Share this map"
+              aria-label="Share this map"
+            >
+              <Share2 className="w-6 h-6" strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
 
         {useNearbyFilter && userLocation && (
@@ -650,7 +926,9 @@ const HomePage: React.FC = () => {
                 setUseNearbyFilter(false);
                 setUserLocation(null);
                 setSelectedShop(null);
-                setCenter({ lat: -50.8485, lng: 174.7633 });
+                setNearbyCenterType('USER');
+                setNearbyCenterName('');
+                setCenter(NZ_CENTER);
                 setZoom(5.5);
               }} 
               className="ml-2 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded-lg font-bold transition"
@@ -663,14 +941,15 @@ const HomePage: React.FC = () => {
         {/* Drawer */}
         <div 
           ref={drawerRef}
-          className="absolute bottom-0 left-0 right-0 z-[999] flex flex-col"
+          className="absolute bottom-0 left-0 right-0 z-[999] flex flex-col touch-manipulation"
           style={{
             height: `${drawerHeight}px`,
+            paddingBottom: 'max(4px, env(safe-area-inset-bottom, 0px))',
             transition: isDraggingDrawer.current ? 'none' : 'height 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
             borderTopLeftRadius: '24px',
             borderTopRightRadius: '24px',
-            boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
-            background: 'linear-gradient(to top, rgba(255, 150, 100, 0.85), rgba(255, 200, 100, 0.6), rgba(255, 255, 255, 0.4))',
+            boxShadow: '0 -6px 28px rgba(0,0,0,0.18), 0 -1px 0 rgba(255,255,255,0.5) inset',
+            background: 'linear-gradient(to top, rgba(255, 130, 90, 0.92), rgba(255, 190, 120, 0.75), rgba(255, 248, 235, 0.55))',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
           }}
@@ -681,86 +960,139 @@ const HomePage: React.FC = () => {
           onMouseMove={handleDrawerMouseMove}
           onMouseUp={handleDrawerMouseUp}
         >
-          <div className="flex-1 relative overflow-hidden w-full" style={{ borderRadius: '24px 24px 0 0', paddingTop: '10px' }}>
+          <div className="flex-1 relative overflow-hidden w-full flex flex-col min-h-0" style={{ borderRadius: '24px 24px 0 0', paddingTop: '4px' }}>
+            {/* Slim handle — does not add much height; primary affordance is the FAB */}
+            <div className="shrink-0 flex justify-center px-3 pt-0.5 pb-0">
+              <div
+                className="h-1.5 w-14 sm:w-16 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20"
+                aria-hidden
+              />
+            </div>
             {isExpanded ? (
-              <div className="h-full w-full pt-4 pb-4 px-4">
-                 <div 
-                  ref={scrollRef}
-                  className="flex items-center h-full"
-                  style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
-                  onMouseDown={(e) => handleListDragStart(e.clientX)}
-                  onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
-                >
-                  {filteredShops.length > 0 ? (
-                    [...filteredShops, ...filteredShops].map((shop, index) => {
-                      const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
-                      const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                      const isSelected = selectedShop?.id === shop.id;
-                      const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
-                      const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
-                      
-                      return (
-                        <div
-                          key={uniqueKey}
-                          className="block flex-shrink-0 flex-grow-0 no-drag relative"
-                          style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
-                          onClick={(e) => {
-                            const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
-                            const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
-                            e.stopPropagation(); 
-                            handleCardClick(shop, finalX);
-                          }}
-                        >
-                          <ShopCard
-                            shop={shop}
-                            isSelected={isSelected}
-                            onClick={() => {}} 
-                            onDelete={handleDeleteShop}
-                            isAdmin={isAdmin}
-                            canDelete={isAdmin}
-                            onSave={(updated) => {
-                              const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
-                              setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
-                            }}
-                            deleting={deletingId === shop.id}
-                            isLoggedIn={isLoggedIn}
-                            onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
-                            autoOpenEdit={shouldAutoOpenEdit}
-                            onAutoEditHandled={() => setPendingEditShopId(null)}
-                          />
-                          {isSelected && (
-                            <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
-                              Tap again for details
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
-                      {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
+              <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
+                {useNearbyFilter && userLocation && (
+                  <div className="shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] pointer-events-none">
+                    <div
+                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-[11px] sm:text-xs font-semibold text-amber-950 leading-snug tracking-tight">
+                        {nearbyRangeTitle}
+                      </p>
                     </div>
-                  )}
-                </div>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
-                  <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600">
-                    <ChevronDown size={22} strokeWidth={3} />
-                  </button>
+                  </div>
+                )}
+                <div className="relative flex-1 min-h-0 min-w-0 w-full">
+                  <div
+                    ref={scrollRef}
+                    className="flex items-center h-full min-h-0 min-w-0 pr-12"
+                    style={{ width: 'max-content', cursor: 'grab', touchAction: 'none', userSelect: 'none', willChange: 'transform', transform: `translateX(${currentTranslateX.current}px)` }}
+                    onMouseDown={(e) => handleListDragStart(e.clientX)}
+                    onTouchStart={(e) => handleListDragStart(e.touches[0].clientX)}
+                  >
+                    {filteredShops.length > 0 ? (
+                      [...filteredShops, ...filteredShops].map((shop, index) => {
+                        const uniqueKey = `${shop.id}-copy${Math.floor(index / filteredShops.length)}`;
+                        const slug = shop.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const isSelected = selectedShop?.id === shop.id;
+                        const isFirstCopy = Math.floor(index / filteredShops.length) === 0;
+                        const shouldAutoOpenEdit = pendingEditShopId === shop.id && isFirstCopy;
+                        
+                        return (
+                          <div
+                            key={uniqueKey}
+                            className="block flex-shrink-0 flex-grow-0 no-drag relative"
+                            style={{ width: '260px', minWidth: '260px', maxWidth: '260px', marginRight: '16px', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              const clientX = 'touches' in e ? (e as any).touches?.[0]?.clientX || 0 : e.clientX;
+                              const finalX = 'changedTouches' in e && (e as any).changedTouches?.length > 0 ? (e as any).changedTouches[0].clientX : clientX;
+                              e.stopPropagation(); 
+                              handleCardClick(shop, finalX);
+                            }}
+                          >
+                            <ShopCard
+                              shop={shop}
+                              isSelected={isSelected}
+                              onClick={() => {}} 
+                              onDelete={handleDeleteShop}
+                              isAdmin={isAdmin}
+                              canDelete={isAdmin}
+                              onSave={(updated) => {
+                                const safeUpdated = { ...updated, pictures: updated.pictures ? [...updated.pictures] : [], new_girls_last_15_days: !!updated.new_girls_last_15_days, badge_text: updated.badge_text || (updated.new_girls_last_15_days ? 'New' : '') };
+                                setShops(prev => prev.map(s => s.id === safeUpdated.id ? safeUpdated : s));
+                              }}
+                              deleting={deletingId === shop.id}
+                              isLoggedIn={isLoggedIn}
+                              onPreview={(s, i) => { setPreviewShop(s); setPreviewIndex(i); }}
+                              autoOpenEdit={shouldAutoOpenEdit}
+                              onAutoEditHandled={() => setPendingEditShopId(null)}
+                              onEditModalChange={setShopCardEditOpen}
+                            />
+                            {isSelected && (
+                              <div className="mt-2 text-center text-xs font-bold text-rose-700 bg-white/90 rounded py-1 shadow-sm border border-rose-100 animate-pulse">
+                                Tap again for details
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-white font-bold bg-black/40 backdrop-blur-md p-8 rounded-xl text-center min-w-[300px] shadow-lg">
+                        {selectedTags.length > 0 ? `No shops found with selected badges.` : "No shops found nearby."}
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className="absolute right-2 sm:right-3 z-[1000] pointer-events-auto"
+                    style={{ bottom: 'max(6px, env(safe-area-inset-bottom, 0px))', top: 'auto', transform: 'none' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={toggleDrawer}
+                      className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.45)] ring-[3px] ring-white/90 border-2 border-white/50 motion-reduce:shadow-lg"
+                      aria-label="Collapse shop list"
+                    >
+                      <ChevronDown size={26} strokeWidth={3} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
-               <div className="h-full w-full flex items-center px-6 no-drag" onClick={toggleDrawer}>
+              <div className="flex-1 min-h-0 w-full flex items-center px-3 sm:px-4 pb-1 no-drag pr-[4.5rem]" onClick={toggleDrawer}>
                 {selectedShop ? (
-                  <div className="flex items-center gap-4 text-white w-full">
-                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-lg"><MapPin size={24} /></div>
-                    <div className="flex-1 min-w-0"><h3 className="font-bold text-lg truncate">{selectedShop.name}</h3><p className="text-xs text-white/80 truncate">Tap again to view details</p></div>
-                    <ChevronUp className="text-white/80 flex-shrink-0" size={24} />
+                  <div className="flex items-center gap-2 text-white w-full min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center flex-shrink-0 shadow-md ring-1 ring-white/35">
+                      <MapPin size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-sm sm:text-base truncate text-white drop-shadow">{selectedShop.name}</h3>
+                      <p className="text-[10px] sm:text-xs text-white/90 font-medium truncate drop-shadow">Tap again for details</p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-white font-bold text-sm flex items-center gap-2"><MapPin size={16} /><span>Select a shop on the map</span><ChevronUp size={16} /></div>
+                  <div className="flex items-center gap-2 text-white w-full min-w-0">
+                    <MapPin size={16} className="flex-shrink-0 drop-shadow" />
+                    <span className="font-bold text-[11px] sm:text-xs leading-tight drop-shadow">
+                      Select a shop on the map
+                    </span>
+                  </div>
                 )}
-                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-[1000]">
-                  <button onClick={toggleDrawer} className="w-9 h-9 bg-slate-800 rounded-full flex items-center justify-center text-white hover:bg-slate-700 hover:scale-110 hover:shadow-2xl transition-all shadow-lg border border-slate-600"><ChevronUp size={22} strokeWidth={3} /></button>
+                <div
+                  className="absolute right-2 sm:right-3 z-[1000]"
+                  style={{ bottom: 'max(6px, env(safe-area-inset-bottom, 0px))', top: 'auto', transform: 'none' }}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleDrawer();
+                    }}
+                    className="min-h-12 min-w-12 w-12 h-12 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 active:scale-95 shadow-[0_4px_22px_rgba(225,29,72,0.55)] ring-[3px] ring-white/95 border-2 border-white/60 animate-pulse motion-reduce:animate-none"
+                    aria-label="Expand shop list"
+                  >
+                    <ChevronUp size={28} strokeWidth={3} />
+                  </button>
                 </div>
               </div>
             )}
@@ -780,6 +1112,13 @@ const HomePage: React.FC = () => {
       />
     </div>
   );
+};
+
+/** Old /stats/:id links → shop detail (slug or numeric id both work on ShopDetailPage) */
+const StatsToShopRedirect: React.FC = () => {
+  const { shopId } = useParams<{ shopId: string }>();
+  if (!shopId) return <Navigate to="/" replace />;
+  return <Navigate to={`/shop/${encodeURIComponent(shopId)}`} replace />;
 };
 
 const App: React.FC = () => {
@@ -815,8 +1154,7 @@ const App: React.FC = () => {
         {/* :slug 是一个动态参数，可以匹配 relax, massage, abc 等任意值 */}
         <Route path="/shop/:slug" element={<ShopDetailPage />} />
 
-        {/* 统计页路由 */}
-        <Route path="/stats/:shopId" element={<ShopStats />} />
+        <Route path="/stats/:shopId" element={<StatsToShopRedirect />} />
         {/* 👇 新增：全站统计路由 */}
         <Route path="/admin/stats" element={<AdminStats />} />
         <Route path="/admin/assign-ads" element={<AssignAdsPage />} />

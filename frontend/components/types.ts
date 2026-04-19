@@ -30,6 +30,7 @@ export interface Shop {
   // ✅ 新增字段 (必须在这里定义，否则 TS 会报错)
   about_me?: string;          // 技师/店铺自我介绍
   additional_price?: string;  // 额外价格说明
+  filter_city?: string;
 }
 
 // 🔥 创建店铺时的数据类型 (用于 AdminPanel 表单)
@@ -49,4 +50,6 @@ export interface ShopCreate {
   // ✅ 新增字段
   about_me?: string;
   additional_price?: string;
+  /** Admin-only map region chip */
+  filter_city?: string;
 }
