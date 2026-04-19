@@ -201,7 +201,7 @@ const BadgeFilterDropdown: React.FC<BadgeFilterDropdownProps> = ({
         ref={triggerRef}
         type="button"
         onClick={handleTriggerClick}
-        className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+        className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/40 px-3 py-1 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-sm hover:bg-white/55"
       >
         <span>Badges</span>
         <span className="text-gray-500">{summaryText}</span>
