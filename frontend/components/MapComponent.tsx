@@ -148,6 +148,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
       attributionControl: false
     }).setView([center.lat, center.lng], zoom);
 
+    const el = mapRef.current.getContainer();
+    el.style.background = 'transparent';
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(mapRef.current);
@@ -234,13 +237,14 @@ const MapComponent: React.FC<MapComponentProps> = ({
   return (
     <div 
       ref={mapContainerRef} 
-      className="w-full h-full overflow-hidden"
+      className="w-full h-full overflow-hidden bg-transparent"
       style={{ 
         maxWidth: '100%',
         width: '100%',
         boxSizing: 'border-box',
         position: 'relative', 
-        zIndex: 0 
+        zIndex: 0,
+        background: 'transparent',
       }} 
     />
   );
