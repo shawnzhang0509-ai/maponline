@@ -139,6 +139,11 @@ const HomePage: React.FC = () => {
 
   const [drawerHeight, setDrawerHeight] = useState(COLLAPSED_HEIGHT);
   const isExpanded = drawerHeight > COLLAPSED_HEIGHT + 50;
+  /** Live height during drawer drag (state updates async; end handler needs this) */
+  const drawerHeightRef = useRef(COLLAPSED_HEIGHT);
+  useEffect(() => {
+    drawerHeightRef.current = drawerHeight;
+  }, [drawerHeight]);
 
   // 1. 原有的 URL 处理逻辑 (保持不变)
   useEffect(() => {
@@ -476,12 +481,25 @@ const HomePage: React.FC = () => {
   const startY = useRef(0);
   const startHeight = useRef(0);
 
+  const resolveDrawerSnap = (currentHeight: number) => {
+    const range = EXPANDED_HEIGHT - COLLAPSED_HEIGHT;
+    const snapUpThreshold = COLLAPSED_HEIGHT + range * 0.42;
+    return currentHeight > snapUpThreshold ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+  };
+
   const handleDrawerTouchStart = (e: React.TouchEvent) => {
     if (shopCardEditOpen) return;
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('button')) return;
+    const onHandle = !!el.closest('.drawer-drag-handle');
+    if (drawerHeightRef.current > COLLAPSED_HEIGHT + 50) {
+      if (!onHandle) return;
+    } else if (el.closest('.no-drag')) {
+      return;
+    }
     isDraggingDrawer.current = true;
     startY.current = e.touches[0].clientY;
-    startHeight.current = drawerHeight;
+    startHeight.current = drawerHeightRef.current;
     stopAutoScroll();
   };
   const handleDrawerTouchMove = (e: React.TouchEvent) => {
@@ -490,23 +508,31 @@ const HomePage: React.FC = () => {
     let newHeight = startHeight.current + deltaY;
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
+    drawerHeightRef.current = newHeight;
     setDrawerHeight(newHeight);
   };
   const handleDrawerTouchEnd = () => {
     if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
-    const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
-    const willExpand = drawerHeight > threshold;
-    setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+    const next = resolveDrawerSnap(drawerHeightRef.current);
+    setDrawerHeight(next);
+    const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
     else stopAutoScroll();
   };
   const handleDrawerMouseDown = (e: React.MouseEvent) => {
     if (shopCardEditOpen) return;
-    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('.no-drag')) return;
+    const el = e.target as HTMLElement;
+    if (el.closest('button')) return;
+    const onHandle = !!el.closest('.drawer-drag-handle');
+    if (drawerHeightRef.current > COLLAPSED_HEIGHT + 50) {
+      if (!onHandle) return;
+    } else if (el.closest('.no-drag')) {
+      return;
+    }
     isDraggingDrawer.current = true;
     startY.current = e.clientY;
-    startHeight.current = drawerHeight;
+    startHeight.current = drawerHeightRef.current;
     stopAutoScroll();
     window.addEventListener('mousemove', handleDrawerMouseMove);
     window.addEventListener('mouseup', handleDrawerMouseUp);
@@ -517,15 +543,17 @@ const HomePage: React.FC = () => {
     let newHeight = startHeight.current + deltaY;
     if (newHeight < COLLAPSED_HEIGHT) newHeight = COLLAPSED_HEIGHT;
     if (newHeight > EXPANDED_HEIGHT) newHeight = EXPANDED_HEIGHT;
+    drawerHeightRef.current = newHeight;
     setDrawerHeight(newHeight);
   };
   const handleDrawerMouseUp = () => {
+    if (!isDraggingDrawer.current) return;
     isDraggingDrawer.current = false;
     window.removeEventListener('mousemove', handleDrawerMouseMove);
     window.removeEventListener('mouseup', handleDrawerMouseUp);
-    const threshold = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
-    const willExpand = drawerHeight > threshold;
-    setDrawerHeight(willExpand ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+    const next = resolveDrawerSnap(drawerHeightRef.current);
+    setDrawerHeight(next);
+    const willExpand = next === EXPANDED_HEIGHT;
     if (willExpand && !selectedShop) resumeTimerRef.current = setTimeout(() => { if (!isDraggingList.current) startAutoScroll(); }, 500);
     else stopAutoScroll();
   };
@@ -971,19 +999,20 @@ const HomePage: React.FC = () => {
           onMouseUp={handleDrawerMouseUp}
         >
           <div className="flex-1 relative overflow-hidden w-full flex flex-col min-h-0" style={{ borderRadius: '24px 24px 0 0', paddingTop: '4px' }}>
-            {/* Slim handle — does not add much height; primary affordance is the FAB */}
-            <div className="shrink-0 flex justify-center px-3 pt-0.5 pb-0">
+            {/* Drag handle: large touch target; swipe down to collapse (FAB still works) */}
+            <div className="drawer-drag-handle shrink-0 flex justify-center px-3 pt-1 pb-2 cursor-grab active:cursor-grabbing touch-none">
               <div
-                className="h-1.5 w-14 sm:w-16 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20"
+                className="h-1.5 w-16 sm:w-20 rounded-full bg-white/95 shadow-[0_1px_8px_rgba(0,0,0,0.35)] ring-1 ring-amber-900/20 pointer-events-none"
                 aria-hidden
               />
+              <span className="sr-only">Drag down to minimise the list</span>
             </div>
             {isExpanded ? (
               <div className="h-full w-full pt-2 pb-3 px-3 sm:px-4 flex flex-col min-h-0">
                 {useNearbyFilter && userLocation && (
-                  <div className="shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] pointer-events-none">
+                  <div className="drawer-drag-handle shrink-0 mb-2 mx-auto w-full max-w-[min(100%,520px)] touch-none cursor-grab active:cursor-grabbing">
                     <div
-                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80"
+                      className="rounded-xl border border-amber-200/90 bg-gradient-to-r from-amber-50 via-orange-50 to-rose-50 px-3 py-2 sm:py-2.5 text-center shadow-sm ring-1 ring-amber-100/80 pointer-events-none"
                       role="status"
                       aria-live="polite"
                     >
